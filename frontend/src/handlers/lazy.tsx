@@ -1,7 +1,9 @@
 import { For, createSignal, createResource, createEffect, onCleanup, Show } from "solid-js";
 import { loadThumbnail, loadWad, spriteThumbnail, textPreview, wadTexture } from "../api";
+import type { Rgba } from "../types";
 import { paintRgba } from "../util/canvas";
-import Highlighted, { extOf } from "../viewers/Highlighted";
+import { extOf } from "../util/format";
+import Highlighted from "../viewers/Highlighted";
 
 /** Returns a ref-setter + a `visible` signal that flips true once the element
  *  scrolls within ~250px of the viewport — so a folder of 600 images only
@@ -26,95 +28,66 @@ export function useVisible() {
   return { visible, ref };
 }
 
-/** Lazy, downscaled image thumbnail painted to a canvas. */
-export function ImageThumb(props: { path: string; size: number }) {
+/**
+ * The one lazy "decode an RGBA buffer and paint it to a canvas" tile. Defers the
+ * `load()` until the tile scrolls into view, shows a pulse while loading and a
+ * glyph on error. Every image/sprite/wad thumbnail is just this with a loader.
+ */
+export function LazyCanvas(props: {
+  load: () => Promise<Rgba>;
+  glyph?: string;
+  wrap?: string;
+  canvasClass?: string;
+}) {
   const { visible, ref } = useVisible();
-  const [img] = createResource(
-    () => (visible() ? props.path : null),
-    (p) => loadThumbnail(p, props.size),
-  );
+  const [img] = createResource(visible, () => props.load());
   let canvas: HTMLCanvasElement | undefined;
   createEffect(() => {
     const d = img();
     if (d && canvas) paintRgba(canvas, d);
   });
   return (
-    <div class="tile-preview" ref={ref}>
+    <div class={props.wrap ?? "tile-preview"} ref={ref}>
       <Show when={img()} fallback={<div class="tile-loading" />}>
-        <Show when={!img.error} fallback={<div class="tile-emoji">⚠️</div>}>
-          <canvas class="tile-canvas" ref={canvas} />
+        <Show when={!img.error} fallback={<div class="tile-emoji">{props.glyph ?? "⚠️"}</div>}>
+          <canvas class={props.canvasClass ?? "tile-canvas"} ref={canvas} />
         </Show>
       </Show>
     </div>
   );
 }
 
-/** Lazy WAD-texture thumbnail (decoded palettized texture painted to canvas). */
-export function WadTexThumb(props: { path: string; name: string }) {
-  const { visible, ref } = useVisible();
-  const [img] = createResource(
-    () => (visible() ? props.name : null),
-    (n) => wadTexture(props.path, n),
-  );
-  let canvas: HTMLCanvasElement | undefined;
-  createEffect(() => {
-    const d = img();
-    if (d && canvas) paintRgba(canvas, d);
-  });
-  return (
-    <div class="tile-preview" ref={ref}>
-      <Show when={img()} fallback={<div class="tile-loading" />}>
-        <Show when={!img.error} fallback={<div class="tile-emoji">⚠️</div>}>
-          <canvas class="tile-canvas" ref={canvas} />
-        </Show>
-      </Show>
-    </div>
-  );
-}
+export const ImageThumb = (props: { path: string; size: number }) => (
+  <LazyCanvas load={() => loadThumbnail(props.path, props.size)} glyph="🖼️" />
+);
 
-/** Lazy sprite tile: decodes just the first frame, downscaled. */
-export function SpriteThumb(props: { path: string }) {
-  const { visible, ref } = useVisible();
-  const [img] = createResource(
-    () => (visible() ? props.path : null),
-    (p) => spriteThumbnail(p, 128),
-  );
-  let canvas: HTMLCanvasElement | undefined;
-  createEffect(() => {
-    const d = img();
-    if (d && canvas) paintRgba(canvas, d);
-  });
-  return (
-    <div class="tile-preview" ref={ref}>
-      <Show when={img()} fallback={<div class="tile-loading" />}>
-        <Show when={!img.error} fallback={<div class="tile-emoji">✨</div>}>
-          <canvas class="tile-canvas" ref={canvas} />
-        </Show>
-      </Show>
-    </div>
-  );
-}
+export const SpriteThumb = (props: { path: string }) => (
+  <LazyCanvas load={() => spriteThumbnail(props.path, 128)} glyph="✨" />
+);
 
-function WadMini(props: { path: string; name: string }) {
-  const [img] = createResource(() => props.name, (n) => wadTexture(props.path, n));
-  let canvas: HTMLCanvasElement | undefined;
-  createEffect(() => {
-    const d = img();
-    if (d && canvas) paintRgba(canvas, d);
-  });
-  return <canvas class="wad-mini" ref={canvas} />;
-}
+export const WadTexThumb = (props: { path: string; name: string }) => (
+  <LazyCanvas load={() => wadTexture(props.path, props.name)} />
+);
 
 /** Lazy WAD folder tile: a 2×2 mini-grid of the archive's first 4 textures. */
 export function WadTilePreview(props: { path: string }) {
   const { visible, ref } = useVisible();
-  const [list] = createResource(() => (visible() ? props.path : null), loadWad);
+  const [list] = createResource(visible, () => loadWad(props.path));
   const first4 = () => (list() ?? []).slice(0, 4);
   return (
     <div class="tile-preview" ref={ref}>
       <Show when={list()} fallback={<div class="tile-loading" />}>
         <div class="wad-2x2">
-          <For each={first4()}>{(t) => <WadMini path={props.path} name={t.name} />}</For>
+          <For each={first4()}>
+            {(t) => (
+              <LazyCanvas
+                load={() => wadTexture(props.path, t.name)}
+                wrap="wad-mini-cell"
+                canvasClass="wad-mini"
+                glyph="·"
+              />
+            )}
+          </For>
         </div>
       </Show>
     </div>
@@ -124,10 +97,7 @@ export function WadTilePreview(props: { path: string }) {
 /** Lazy text snippet preview (first ~800 bytes, shrunk to fit). */
 export function TextThumb(props: { path: string }) {
   const { visible, ref } = useVisible();
-  const [text] = createResource(
-    () => (visible() ? props.path : null),
-    (p) => textPreview(p, 800),
-  );
+  const [text] = createResource(visible, () => textPreview(props.path, 800));
   return (
     <div class="tile-preview" ref={ref}>
       <Show when={text()} fallback={<div class="tile-loading" />}>

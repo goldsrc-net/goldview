@@ -1,22 +1,16 @@
 import type { Component } from "solid-js";
 import type { Category, Node } from "../types";
-import { ResourceHandler, TileProps, ViewProps } from "./Handler";
-import { FOLDER_ICON } from "../util/icons";
+import { ResourceHandler, ViewProps } from "./Handler";
 import FolderView from "./FolderView";
 
-/** Claims directories. Its `View` is the folder grid; its `Tile` is a folder
- *  chip (used when a parent folder lists its subfolders). */
+/** Claims directories. Its `View` is the folder grid; the `Tile` is the base
+ *  generic 📁 chip (used when a parent folder lists its subfolders). */
 export class FolderHandler extends ResourceHandler {
   readonly id = "folder";
   readonly label = "Folders";
-  readonly icon = FOLDER_ICON;
+  readonly icon = "📁";
   readonly categories: Category[] = [];
   readonly zoom = "none" as const;
-  readonly Tile: Component<TileProps> = (_p) => (
-    <div class="tile-preview tile-generic">
-      <div class="tile-emoji">{FOLDER_ICON}</div>
-    </div>
-  );
   readonly View: Component<ViewProps> = (p) => <FolderView node={p.node} onSelect={p.onSelect} />;
 
   canHandle(node: Node): boolean {

@@ -1,19 +1,13 @@
 import type { Component } from "solid-js";
 import type { Category } from "../types";
-import { ResourceHandler, TileProps, ViewProps } from "./Handler";
+import { ResourceHandler, ViewProps } from "./Handler";
 
-/** Base for not-yet-implemented viewers: a uniform "coming soon" tile + pane,
- *  parameterised by icon/label/phase. Each concrete subclass is swapped for a
- *  real handler in its phase (WAD → Phase 1, maps → Phase 2, models → 3/4…). */
+/** Base for not-yet-implemented viewers: a uniform "coming soon" pane,
+ *  parameterised by icon/label/phase (Tile inherited from the base). Each
+ *  concrete subclass is swapped for a real handler in its phase. */
 abstract class StubHandler extends ResourceHandler {
   abstract readonly phase: string;
   readonly zoom = "none" as const;
-  readonly Tile: Component<TileProps> = (_p) => (
-    <div class="tile-preview tile-generic">
-      <div class="tile-emoji">{this.icon}</div>
-      <div class="tile-ext">{this.label}</div>
-    </div>
-  );
   readonly View: Component<ViewProps> = (_p) => (
     <div class="viewer-body center">
       <div class="placeholder">

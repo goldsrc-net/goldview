@@ -1,23 +1,9 @@
 import { For, Show, createMemo } from "solid-js";
-import type { Node, Category } from "../types";
+import type { Node } from "../types";
+import { registry } from "../handlers/registry";
 
-const ICONS: Record<Category | "dir", string> = {
-  dir: "📁",
-  map: "🗺️",
-  model: "🧍",
-  sprite: "✨",
-  wad: "🧱",
-  image: "🖼️",
-  sound: "🔊",
-  script: "📜",
-  text: "📄",
-  other: "•",
-};
-
-function iconFor(n: Node): string {
-  if (n.is_dir) return ICONS.dir;
-  return ICONS[(n.category ?? "other") as Category];
-}
+/** Single icon source: the handler that claims this node. */
+const iconFor = (n: Node): string => registry.resolve(n).icon;
 
 /** Does this node (or any descendant) match the filter substring? */
 function matches(n: Node, f: string): boolean {

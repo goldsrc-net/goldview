@@ -1,7 +1,6 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import type { Category, Node } from "../types";
-import { CATEGORY_ICON, FOLDER_ICON } from "../util/icons";
 import { registry } from "./registry";
 
 type SortKey = "name" | "type" | "size";
@@ -48,7 +47,7 @@ export default function FolderView(props: { node: Node; onSelect: (n: Node) => v
           <For each={cats()}>
             {(c) => (
               <button classList={{ active: filter() === c }} onClick={() => setFilter(c)}>
-                {CATEGORY_ICON[c]} {c}
+                {registry.forCategory(c)?.icon} {c}
               </button>
             )}
           </For>
@@ -69,9 +68,7 @@ export default function FolderView(props: { node: Node; onSelect: (n: Node) => v
             <For each={dirs()}>
               {(d) => (
                 <div class="cell" onClick={() => props.onSelect(d)} title={d.name}>
-                  <div class="tile-preview tile-generic">
-                    <div class="tile-emoji">{FOLDER_ICON}</div>
-                  </div>
+                  <Dynamic component={registry.resolve(d).Tile} node={d} />
                   <div class="cell-label">{d.name}</div>
                 </div>
               )}

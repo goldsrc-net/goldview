@@ -19,9 +19,3 @@ export default function Highlighted(props: {
     </pre>
   );
 }
-
-/** Derive an extension from a resource path. */
-export function extOf(path: string): string {
-  const i = path.lastIndexOf(".");
-  return i >= 0 ? path.slice(i + 1) : "";
-}

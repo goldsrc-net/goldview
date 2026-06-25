@@ -1,9 +1,11 @@
-import { createSignal, onMount, Show } from "solid-js";
+import { For, createResource, createSignal, onMount, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 import type { Node, OpenResult } from "./types";
 import { pickAndOpenMod, startupMod } from "./api";
 import { TreeRow } from "./tree/Tree";
 import Viewer from "./viewers/Viewer";
+import { registry } from "./handlers/registry";
+import { fmtSize } from "./util/format";
 
 export default function App() {
   const [mod, setMod] = createSignal<OpenResult | null>(null);
@@ -14,6 +16,15 @@ export default function App() {
   const [error, setError] = createSignal<string>("");
 
   const openSet = () => new Set(Object.keys(open).filter((k) => open[k]));
+
+  // handler-contributed inspector rows for the current selection
+  const [details] = createResource(
+    () => selected(),
+    async (n) => {
+      const h = registry.resolve(n);
+      return h.details ? await h.details(n).catch(() => []) : [];
+    },
+  );
 
   function applyOpen(res: OpenResult) {
     setMod(res);
@@ -112,6 +123,16 @@ export default function App() {
                   <span class="k">source</span>
                   <span class="v">{mod()!.names[n().source!] ?? n().source}</span>
                 </Show>
+                <Show when={details()}>
+                  <For each={details()}>
+                    {(d) => (
+                      <>
+                        <span class="k">{d.label}</span>
+                        <span class="v">{d.value}</span>
+                      </>
+                    )}
+                  </For>
+                </Show>
               </div>
             )}
           </Show>
@@ -119,10 +140,4 @@ export default function App() {
       </div>
     </div>
   );
-}
-
-function fmtSize(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }

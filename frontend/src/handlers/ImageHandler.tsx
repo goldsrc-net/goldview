@@ -1,6 +1,7 @@
 import type { Component } from "solid-js";
-import type { Category } from "../types";
-import { ResourceHandler, TileProps, ViewProps } from "./Handler";
+import type { Category, Node } from "../types";
+import { Detail, ResourceHandler, TileProps, ViewProps } from "./Handler";
+import { loadImage } from "../api";
 import { ImageThumb } from "./lazy";
 import ImageViewer from "../viewers/ImageViewer";
 
@@ -12,4 +13,9 @@ export class ImageHandler extends ResourceHandler {
   readonly zoom = "scale" as const;
   readonly Tile: Component<TileProps> = (p) => <ImageThumb path={p.node.path} size={128} />;
   readonly View: Component<ViewProps> = (p) => <ImageViewer path={p.node.path} zoom={p.zoom} />;
+
+  async details(node: Node): Promise<Detail[]> {
+    const r = await loadImage(node.path);
+    return [{ label: "dimensions", value: `${r.width}×${r.height}` }];
+  }
 }

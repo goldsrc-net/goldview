@@ -1,6 +1,7 @@
 import { createResource, Show } from "solid-js";
 import { readText } from "../api";
-import Highlighted, { extOf } from "./Highlighted";
+import Highlighted from "./Highlighted";
+import { extOf } from "../util/format";
 
 const BASE_FONT = 12;
 

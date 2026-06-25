@@ -1,6 +1,7 @@
 import type { Component } from "solid-js";
-import type { Category } from "../types";
-import { ResourceHandler, TileProps, ViewProps } from "./Handler";
+import type { Category, Node } from "../types";
+import { Detail, ResourceHandler, ViewProps } from "./Handler";
+import { audioInfo } from "../api";
 import AudioPlayer from "../viewers/AudioPlayer";
 
 export class SoundHandler extends ResourceHandler {
@@ -9,16 +10,16 @@ export class SoundHandler extends ResourceHandler {
   readonly icon = "🔊";
   readonly categories: Category[] = ["sound"];
   readonly zoom = "none" as const;
-  readonly Tile: Component<TileProps> = (p) => (
-    <div class="tile-preview tile-generic">
-      <div class="tile-emoji">🔊</div>
-      <div class="tile-ext">{ext(p.node.name)}</div>
-    </div>
-  );
+  // Tile inherited from the base (generic 🔊 icon).
   readonly View: Component<ViewProps> = (p) => <AudioPlayer path={p.node.path} />;
-}
 
-function ext(name: string): string {
-  const i = name.lastIndexOf(".");
-  return i >= 0 ? name.slice(i + 1).toUpperCase() : "";
+  async details(node: Node): Promise<Detail[]> {
+    if (!node.path.toLowerCase().endsWith(".wav")) return [];
+    const i = await audioInfo(node.path);
+    return [
+      { label: "sample rate", value: `${i.sample_rate} Hz` },
+      { label: "channels", value: String(i.channels) },
+      { label: "duration", value: `${i.duration_secs.toFixed(2)} s` },
+    ];
+  }
 }

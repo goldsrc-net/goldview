@@ -1,6 +1,7 @@
 import type { Component } from "solid-js";
-import type { Category } from "../types";
-import { ResourceHandler, TileProps, ViewProps } from "./Handler";
+import type { Category, Node } from "../types";
+import { Detail, ResourceHandler, TileProps, ViewProps } from "./Handler";
+import { loadWad } from "../api";
 import { WadTilePreview } from "./lazy";
 import WadViewer from "../viewers/WadViewer";
 
@@ -14,4 +15,9 @@ export class WadHandler extends ResourceHandler {
   readonly zoom = "none" as const;
   readonly Tile: Component<TileProps> = (p) => <WadTilePreview path={p.node.path} />;
   readonly View: Component<ViewProps> = (p) => <WadViewer path={p.node.path} />;
+
+  async details(node: Node): Promise<Detail[]> {
+    const list = await loadWad(node.path);
+    return [{ label: "textures", value: String(list.length) }];
+  }
 }

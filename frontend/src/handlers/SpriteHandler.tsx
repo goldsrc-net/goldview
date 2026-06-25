@@ -1,6 +1,7 @@
 import type { Component } from "solid-js";
-import type { Category } from "../types";
-import { ResourceHandler, TileProps, ViewProps } from "./Handler";
+import type { Category, Node } from "../types";
+import { Detail, ResourceHandler, TileProps, ViewProps } from "./Handler";
+import { loadSprite } from "../api";
 import { SpriteThumb } from "./lazy";
 import SpriteViewer from "../viewers/SpriteViewer";
 
@@ -12,4 +13,14 @@ export class SpriteHandler extends ResourceHandler {
   readonly zoom = "scale" as const;
   readonly Tile: Component<TileProps> = (p) => <SpriteThumb path={p.node.path} />;
   readonly View: Component<ViewProps> = (p) => <SpriteViewer path={p.node.path} zoom={p.zoom} />;
+
+  async details(node: Node): Promise<Detail[]> {
+    const s = await loadSprite(node.path);
+    return [
+      { label: "frames", value: String(s.num_frames) },
+      { label: "dimensions", value: `${s.width}×${s.height}` },
+      { label: "format", value: s.format_name },
+      { label: "type", value: s.type_name },
+    ];
+  }
 }
