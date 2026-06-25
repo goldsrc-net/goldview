@@ -1,0 +1,25 @@
+{
+  "name": "goldview-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2",
+    "solid-js": "^1.9",
+    "three": "^0.185"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/three": "^0.185",
+    "typescript": "^5.6",
+    "vite": "^6",
+    "vite-plugin-solid": "^2.11"
+  }
+}
