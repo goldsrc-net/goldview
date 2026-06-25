@@ -11,6 +11,7 @@ export class FolderHandler extends ResourceHandler {
   readonly label = "Folders";
   readonly icon = FOLDER_ICON;
   readonly categories: Category[] = [];
+  readonly zoom = "none" as const;
   readonly Tile: Component<TileProps> = (_p) => (
     <div class="tile-preview tile-generic">
       <div class="tile-emoji">{FOLDER_ICON}</div>

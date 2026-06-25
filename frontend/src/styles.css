@@ -142,6 +142,31 @@ pre.text {
   max-height: 100%;
 }
 
+/* zoomable image/sprite stage: a scroll container with a centering wrap whose
+   canvas is sized to natural*zoom (uncapped) so it scrolls when bigger. */
+.viewer-body.zoomable { overflow: auto; }
+.zoom-wrap {
+  min-width: 100%;
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.img-canvas.zoomed { max-width: none; max-height: none; }
+
+.zoom-badge {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--fg-dim);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.zoom-badge:hover { color: var(--fg); }
+
 /* folder grid */
 .folder-toolbar {
   display: flex;
@@ -258,12 +283,10 @@ pre.text {
   width: 100%;
 }
 .sprite-stage {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   min-height: 0;
+  max-width: 100%;
+  overflow: auto;
 }
-.sprite-stage .img-canvas { max-height: 60vh; }
 .sprite-controls {
   display: flex;
   align-items: center;

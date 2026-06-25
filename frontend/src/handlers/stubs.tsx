@@ -7,6 +7,7 @@ import { ResourceHandler, TileProps, ViewProps } from "./Handler";
  *  real handler in its phase (WAD → Phase 1, maps → Phase 2, models → 3/4…). */
 abstract class StubHandler extends ResourceHandler {
   abstract readonly phase: string;
+  readonly zoom = "none" as const;
   readonly Tile: Component<TileProps> = (_p) => (
     <div class="tile-preview tile-generic">
       <div class="tile-emoji">{this.icon}</div>

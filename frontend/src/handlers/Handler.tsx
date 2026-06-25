@@ -1,11 +1,18 @@
 import type { Component } from "solid-js";
 import type { Category, Node } from "../types";
 
+/** How a handler responds to Ctrl+zoom: not at all, by scaling the font (text),
+ *  or by scaling pixels (images/sprites). The Viewer host owns the zoom state +
+ *  input; the View just applies the factor. */
+export type ZoomMode = "none" | "font" | "scale";
+
 /** Props passed to a full-pane viewer. `onSelect` lets a view navigate the
- *  selection (used by the folder grid to drill into children). */
+ *  selection (used by the folder grid to drill into children). `zoom` is the
+ *  current Ctrl-zoom factor (1 = 100%; always 1 for `zoom: "none"` handlers). */
 export interface ViewProps {
   node: Node;
   onSelect: (n: Node) => void;
+  zoom: number;
 }
 
 /** Props passed to a grid preview tile. Tiles are pure preview content — the
@@ -32,6 +39,8 @@ export abstract class ResourceHandler {
   abstract readonly icon: string;
   /** categories this handler claims */
   abstract readonly categories: Category[];
+  /** how Ctrl+zoom behaves for this handler's view (forces each handler to decide) */
+  abstract readonly zoom: ZoomMode;
   /** small grid-preview component */
   abstract readonly Tile: Component<TileProps>;
   /** full-pane viewer component */

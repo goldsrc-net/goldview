@@ -8,6 +8,7 @@ export class SoundHandler extends ResourceHandler {
   readonly label = "Sounds";
   readonly icon = "🔊";
   readonly categories: Category[] = ["sound"];
+  readonly zoom = "none" as const;
   readonly Tile: Component<TileProps> = (p) => (
     <div class="tile-preview tile-generic">
       <div class="tile-emoji">🔊</div>

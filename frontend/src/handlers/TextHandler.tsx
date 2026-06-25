@@ -9,6 +9,7 @@ export class TextHandler extends ResourceHandler {
   readonly label = "Text & scripts";
   readonly icon = "📄";
   readonly categories: Category[] = ["text", "script"];
+  readonly zoom = "font" as const;
   readonly Tile: Component<TileProps> = (p) => <TextThumb path={p.node.path} />;
-  readonly View: Component<ViewProps> = (p) => <TextViewer path={p.node.path} />;
+  readonly View: Component<ViewProps> = (p) => <TextViewer path={p.node.path} zoom={p.zoom} />;
 }

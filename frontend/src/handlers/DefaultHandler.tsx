@@ -8,6 +8,7 @@ export class DefaultHandler extends ResourceHandler {
   readonly label = "Other";
   readonly icon = "📦";
   readonly categories: Category[] = ["other"];
+  readonly zoom = "none" as const;
   readonly Tile: Component<TileProps> = (p) => (
     <div class="tile-preview tile-generic">
       <div class="tile-emoji">📦</div>

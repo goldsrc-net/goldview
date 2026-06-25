@@ -4,19 +4,19 @@ import type { Rgba } from "../types";
 import { paintRgba } from "../util/canvas";
 
 /** Paints one decoded RGBA frame to a canvas. */
-function FrameCanvas(props: { frame: Rgba; class?: string }) {
+function FrameCanvas(props: { frame: Rgba; class?: string; style?: Record<string, string> }) {
   let canvas: HTMLCanvasElement | undefined;
   createEffect(() => {
     if (canvas) paintRgba(canvas, props.frame);
   });
-  return <canvas class={props.class ?? "img-canvas"} ref={canvas} />;
+  return <canvas class={props.class ?? "img-canvas"} ref={canvas} style={props.style} />;
 }
 
 /** Sprite viewer with two modes:
  *   - Play: one frame at a time, play/pause, speed, and a scrub slider that
  *     tracks the active frame while playing (and scrubs when dragged).
  *   - Frames: every frame laid out side by side. */
-export default function SpriteViewer(props: { path: string }) {
+export default function SpriteViewer(props: { path: string; zoom?: number }) {
   const [data] = createResource(() => props.path, loadSprite);
   const [mode, setMode] = createSignal<"play" | "frames">("play");
   const [frame, setFrame] = createSignal(0);
@@ -82,8 +82,18 @@ export default function SpriteViewer(props: { path: string }) {
                 }
               >
                 <div class="sprite-play">
-                  <div class="sprite-stage">
-                    <FrameCanvas frame={d().frames[Math.min(frame(), count() - 1)]!} />
+                  <div class="sprite-stage zoom-wrap">
+                    {(() => {
+                      const f = d().frames[Math.min(frame(), count() - 1)]!;
+                      const z = props.zoom ?? 1;
+                      return (
+                        <FrameCanvas
+                          frame={f}
+                          class="img-canvas zoomed"
+                          style={{ width: `${f.width * z}px`, height: `${f.height * z}px` }}
+                        />
+                      );
+                    })()}
                   </div>
                   <div class="sprite-controls">
                     <button onClick={() => setPlaying((p) => !p)} disabled={count() <= 1}>

@@ -11,6 +11,7 @@ export class WadHandler extends ResourceHandler {
   readonly label = "WAD archives";
   readonly icon = "🧱";
   readonly categories: Category[] = ["wad"];
+  readonly zoom = "none" as const;
   readonly Tile: Component<TileProps> = (p) => <WadTilePreview path={p.node.path} />;
   readonly View: Component<ViewProps> = (p) => <WadViewer path={p.node.path} />;
 }
