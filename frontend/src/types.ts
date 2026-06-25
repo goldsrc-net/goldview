@@ -57,20 +57,38 @@ export interface SubMesh {
   texture: number;
   positions: number[];
   uvs: number[];
+  skin_index: number[];
 }
 export interface PartData {
   name: string;
+  model_names: string[];
   submeshes: SubMesh[];
+}
+export interface BoneOut {
+  name: string;
+  parent: number;
+  pos: [number, number, number];
+  quat: [number, number, number, number];
+}
+export interface SeqMeta {
+  name: string;
+  fps: number;
+  num_frames: number;
 }
 export interface ModelData {
   name: string;
   num_bones: number;
+  bones: BoneOut[];
   textures: ModelTexture[];
   num_skin_families: number;
+  sequences: SeqMeta[];
   parts: PartData[];
   bbox_min: [number, number, number];
   bbox_max: [number, number, number];
 }
+
+/** load_animation: frames[frame][bone] = [px,py,pz, qx,qy,qz,qw] */
+export type AnimationData = number[][][];
 
 export interface WavInfo {
   channels: number;

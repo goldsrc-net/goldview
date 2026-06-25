@@ -56,6 +56,9 @@ export abstract class ResourceHandler {
   /** full-pane viewer component */
   abstract readonly View: Component<ViewProps>;
 
+  /** optional sidebar controls (rendered below the Inspector) */
+  readonly Panel?: Component<ViewProps>;
+
   /** Default grid-preview tile: a generic icon chip. Override for real previews. */
   readonly Tile: Component<TileProps> = (p) => (
     <div class="tile-preview tile-generic">

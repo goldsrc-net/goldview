@@ -1,4 +1,5 @@
-import { For, createResource, createSignal, onMount, Show } from "solid-js";
+import { For, createMemo, createResource, createSignal, onMount, Show } from "solid-js";
+import { Dynamic } from "solid-js/web";
 import { createStore } from "solid-js/store";
 import type { Node, OpenResult } from "./types";
 import { pickAndOpenMod, startupMod } from "./api";
@@ -135,6 +136,17 @@ export default function App() {
                 </Show>
               </div>
             )}
+          </Show>
+          <Show when={selected()}>
+            {(n) => {
+              // reactive: re-resolve when the selection changes
+              const panel = createMemo(() => registry.resolve(n()).Panel);
+              return (
+                <Show when={panel()}>
+                  <Dynamic component={panel()!} node={n()} onSelect={setSelected} zoom={1} />
+                </Show>
+              );
+            }}
           </Show>
         </div>
       </div>

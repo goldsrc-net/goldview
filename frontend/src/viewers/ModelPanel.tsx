@@ -1,0 +1,77 @@
+import { Show, For } from "solid-js";
+import { currentModel } from "./ModelController";
+
+/** Sidebar controls for the open model (sits below the Inspector). Drives the
+ *  shared ModelController, so changes reflect live in the viewport. */
+export default function ModelPanel() {
+  const c = currentModel;
+  return (
+    <div class="model-panel">
+      <h3>Model</h3>
+      <Show when={c() && c()!.data()} fallback={<div class="mp-num">loading…</div>}>
+      {(model) => {
+        const ctrl = c()!;
+        return (
+          <>
+            {/* sequences + playback */}
+            <Show when={model().sequences.length}>
+              <label class="mp-label">Sequence</label>
+              <select
+                class="mp-select"
+                value={ctrl.seq()}
+                onChange={(e) => ctrl.setSequence(+e.currentTarget.value)}
+              >
+                <For each={model().sequences}>
+                  {(s, i) => (
+                    <option value={i()}>
+                      {i()}: {s.name} ({s.num_frames}f)
+                    </option>
+                  )}
+                </For>
+              </select>
+              <div class="mp-row">
+                <button onClick={() => ctrl.togglePlay()} style={{ "min-width": "36px" }}>
+                  {ctrl.playing() ? "⏸" : "▶"}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={Math.max(0, ctrl.frameCount() - 1)}
+                  value={ctrl.frame()}
+                  onInput={(e) => ctrl.scrubTo(+e.currentTarget.value)}
+                  style={{ flex: "1" }}
+                />
+                <span class="mp-num">
+                  {ctrl.frame() + 1}/{ctrl.frameCount()}
+                </span>
+              </div>
+              <div class="mp-row">
+                <span class="mp-num">{ctrl.speed().toFixed(1)}×</span>
+                <input
+                  type="range"
+                  min={0.1}
+                  max={3}
+                  step={0.1}
+                  value={ctrl.speed()}
+                  onInput={(e) => ctrl.setSpeed(+e.currentTarget.value)}
+                  style={{ flex: "1" }}
+                />
+              </div>
+            </Show>
+
+            {/* skin */}
+            <Show when={model().num_skin_families > 1}>
+              <label class="mp-label">Skin</label>
+              <select class="mp-select" value={ctrl.skin()} onChange={(e) => ctrl.setSkin(+e.currentTarget.value)}>
+                <For each={Array.from({ length: model().num_skin_families }, (_, i) => i)}>
+                  {(i) => <option value={i}>skin {i}</option>}
+                </For>
+              </select>
+            </Show>
+          </>
+        );
+      }}
+      </Show>
+    </div>
+  );
+}

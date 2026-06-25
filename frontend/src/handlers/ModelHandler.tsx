@@ -3,6 +3,7 @@ import type { Category, Node } from "../types";
 import { Detail, ResourceHandler, ViewProps } from "./Handler";
 import { loadModel } from "../api";
 import ModelViewer from "../viewers/ModelViewer";
+import ModelPanel from "../viewers/ModelPanel";
 
 /** Studiomodel (.mdl). Tile = base 🧍 icon (3D preview is heavy); View = the
  *  Three.js model viewer. zoom "none" — it owns pointer-lock fly controls. */
@@ -13,6 +14,7 @@ export class ModelHandler extends ResourceHandler {
   readonly categories: Category[] = ["model"];
   readonly zoom = "none" as const;
   readonly View: Component<ViewProps> = (p) => <ModelViewer path={p.node.path} />;
+  readonly Panel: Component<ViewProps> = () => <ModelPanel />;
 
   async details(node: Node): Promise<Detail[]> {
     const m = await loadModel(node.path, 0);

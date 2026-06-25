@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark; /* native form controls (select dropdowns) follow dark theme */
   --bg: #1e1f22;
   --bg2: #2b2d31;
   --bg3: #232428;
@@ -20,6 +21,14 @@ html, body, #root {
   color: var(--fg);
   overflow: hidden;
 }
+
+select {
+  background: var(--bg2);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+select option { background: var(--bg2); color: var(--fg); }
 
 button {
   background: var(--bg2);
@@ -318,6 +327,22 @@ pre.text {
   white-space: nowrap;
 }
 .gl-hint.hidden { display: none; }
+
+/* texture-browser overlay inside the model viewport */
+.tex-overlay { position: absolute; inset: 0; overflow: auto; background: #131417; }
+
+/* model control panel (sidebar, below inspector) */
+.model-panel { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+.model-panel h3 { margin: 0 0 8px; font-size: 12px; color: var(--accent); }
+.mp-label { display: block; font-size: 11px; color: var(--fg-dim); margin: 10px 0 3px; }
+.mp-select {
+  width: 100%;
+  background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 4px; padding: 4px 6px; font-size: 12px;
+}
+.mp-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.mp-row.chips { flex-wrap: wrap; }
+.mp-num { font-size: 11px; color: var(--fg-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .inspector h3 { margin: 0 0 8px; font-size: 12px; color: var(--accent); }
 .inspector .kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; }
