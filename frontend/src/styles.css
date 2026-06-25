@@ -121,6 +121,19 @@ pre.text {
   color: #c8d0d8;
 }
 
+/* syntax highlighting tokens */
+.tok-comment { color: #6a7480; font-style: italic; }
+.tok-string { color: #98c379; }
+.tok-number { color: #d19a66; }
+.tok-keyword { color: #c678dd; font-weight: 600; }
+.tok-variable { color: #56b6c2; }
+.tok-func { color: #61afef; }
+.tok-key { color: #e5c07b; }
+.tok-section { color: #c678dd; font-weight: 600; }
+.tok-operator { color: #abb2bf; }
+.tok-punct { color: #828a96; }
+.tok-plain { color: #c8d0d8; }
+
 .img-canvas {
   image-rendering: pixelated;
   background:

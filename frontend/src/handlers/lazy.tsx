@@ -1,6 +1,7 @@
 import { createSignal, createResource, createEffect, onCleanup, Show } from "solid-js";
 import { loadThumbnail, textPreview } from "../api";
 import { paintRgba } from "../util/canvas";
+import Highlighted, { extOf } from "../viewers/Highlighted";
 
 /** Returns a ref-setter + a `visible` signal that flips true once the element
  *  scrolls within ~250px of the viewport — so a folder of 600 images only
@@ -58,7 +59,7 @@ export function TextThumb(props: { path: string }) {
   return (
     <div class="tile-preview" ref={ref}>
       <Show when={text()} fallback={<div class="tile-loading" />}>
-        <pre class="tile-text">{text()}</pre>
+        <Highlighted text={text() ?? ""} ext={extOf(props.path)} class="tile-text" />
       </Show>
     </div>
   );
