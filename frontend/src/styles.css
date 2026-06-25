@@ -329,7 +329,8 @@ pre.text {
 .gl-hint.hidden { display: none; }
 
 /* texture-browser overlay inside the model viewport */
-.tex-overlay { position: absolute; inset: 0; overflow: auto; background: #131417; }
+.tex-overlay { position: absolute; inset: 0; overflow: auto; background: #131417; display: flex; flex-direction: column; }
+.cell { -webkit-user-select: none; user-select: none; }
 
 /* model control panel (sidebar, below inspector) */
 .model-panel { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }

@@ -1,8 +1,9 @@
-import { createEffect, onCleanup, Show, For } from "solid-js";
+import { createEffect, createSignal, onCleanup, Show, For } from "solid-js";
 import * as THREE from "three";
 import { ModelController, currentModel, setCurrentModel } from "./ModelController";
 import { LazyCanvas } from "../handlers/lazy";
 import { modelTexture } from "../api";
+import TextureZoom from "./TextureZoom";
 
 /** Center pane for a model: a Three.js viewport (skinned + animated) with a
  *  swap-in texture grid. State lives in a shared ModelController (the sidebar
@@ -12,6 +13,7 @@ export default function ModelViewer(props: { path: string }) {
   let canvas: HTMLCanvasElement | undefined;
   let renderer: THREE.WebGLRenderer | undefined;
   let ctrl: ModelController | null = null;
+  const [selTex, setSelTex] = createSignal<{ index: number; name: string; info: string } | null>(null);
 
   function teardown() {
     ctrl?.dispose();
@@ -68,21 +70,37 @@ export default function ModelViewer(props: { path: string }) {
       <Show when={showTextures() && currentModel()?.data()}>
         {(model) => (
           <div class="tex-overlay">
-            <div class="grid">
-              <For each={model().textures}>
-                {(t, i) => (
-                  <div class="cell" title={`${t.name}  ${t.width}×${t.height}`}>
-                    <LazyCanvas load={() => modelTexture(props.path, i())} />
-                    <div class="cell-label">
-                      {t.name}
-                      <div class="dim">
-                        {t.width}×{t.height}
+            <Show
+              when={!selTex()}
+              fallback={
+                <TextureZoom
+                  load={() => modelTexture(props.path, selTex()!.index)}
+                  name={selTex()!.name}
+                  info={selTex()!.info}
+                  onBack={() => setSelTex(null)}
+                />
+              }
+            >
+              <div class="grid">
+                <For each={model().textures}>
+                  {(t, i) => (
+                    <div
+                      class="cell"
+                      title={`${t.name}  ${t.width}×${t.height}`}
+                      onClick={() => setSelTex({ index: i(), name: t.name, info: `${t.width}×${t.height}` })}
+                    >
+                      <LazyCanvas load={() => modelTexture(props.path, i())} />
+                      <div class="cell-label">
+                        {t.name}
+                        <div class="dim">
+                          {t.width}×{t.height}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </For>
-            </div>
+                  )}
+                </For>
+              </div>
+            </Show>
           </div>
         )}
       </Show>
