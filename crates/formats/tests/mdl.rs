@@ -25,13 +25,29 @@ fn parse_and_build_real_model() {
         .sum();
     assert!(tris > 0, "expected triangles");
 
-    // every submesh: positions are XYZ triples, uvs are pairs, counts match
+    // every submesh: positions are XYZ triples, uvs pairs, one skin index per vert
     for part in &data.parts {
         for sm in &part.submeshes {
             assert_eq!(sm.positions.len() % 3, 0);
             assert_eq!(sm.uvs.len() % 2, 0);
             assert_eq!(sm.positions.len() / 3, sm.uvs.len() / 2);
+            assert_eq!(sm.positions.len() / 3, sm.skin_index.len());
             assert!(sm.texture < data.textures.len() || data.textures.is_empty());
+        }
+    }
+
+    // bones + sequences exposed for skeleton/animation
+    assert_eq!(data.bones.len(), data.num_bones);
+    assert!(!data.sequences.is_empty(), "model should have sequences");
+
+    // decode an embedded (group 0) sequence if any → frames×bones of [pos3,quat4]
+    let model2 = Model::parse(std::fs::read(&p).unwrap()).unwrap();
+    for (i, s) in data.sequences.iter().enumerate() {
+        if model2.sequence_group(i) == 0 && s.num_frames > 0 {
+            let frames = model2.decode_animation(i, None);
+            assert_eq!(frames.len(), s.num_frames);
+            assert_eq!(frames[0].len(), data.num_bones);
+            break;
         }
     }
 }

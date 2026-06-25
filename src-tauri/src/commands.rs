@@ -138,6 +138,23 @@ pub fn model_texture(state: State<AppState>, path: String, index: usize) -> CmdR
     model.texture_rgba(index).ok_or_else(|| format!("no texture {index}"))
 }
 
+/// Decode a sequence's animation → per-frame, per-bone [pos3, quat4] local
+/// transforms. Loads the external `<name>NN.mdl` group file when needed.
+#[tauri::command]
+pub fn load_animation(state: State<AppState>, path: String, seq: usize) -> CmdResult<Vec<Vec<[f32; 7]>>> {
+    let bytes = read_bytes(&state, &path)?;
+    let model = Model::parse(bytes).map_err(err)?;
+    let group = model.sequence_group(seq);
+    let ext = if group > 0 {
+        let stem = path.strip_suffix(".mdl").or_else(|| path.strip_suffix(".MDL")).unwrap_or(&path);
+        let group_path = format!("{stem}{group:02}.mdl");
+        Some(read_bytes(&state, &group_path)?)
+    } else {
+        None
+    };
+    Ok(model.decode_animation(seq, ext.as_deref()))
+}
+
 /// WAV header info for the audio inspector.
 #[tauri::command]
 pub fn audio_info(state: State<AppState>, path: String) -> CmdResult<img::WavInfo> {
