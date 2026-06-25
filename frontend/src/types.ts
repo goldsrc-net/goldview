@@ -48,6 +48,30 @@ export interface SpriteData {
   frames: Rgba[];
 }
 
+export interface ModelTexture {
+  name: string;
+  width: number;
+  height: number;
+}
+export interface SubMesh {
+  texture: number;
+  positions: number[];
+  uvs: number[];
+}
+export interface PartData {
+  name: string;
+  submeshes: SubMesh[];
+}
+export interface ModelData {
+  name: string;
+  num_bones: number;
+  textures: ModelTexture[];
+  num_skin_families: number;
+  parts: PartData[];
+  bbox_min: [number, number, number];
+  bbox_max: [number, number, number];
+}
+
 export interface WavInfo {
   channels: number;
   sample_rate: number;

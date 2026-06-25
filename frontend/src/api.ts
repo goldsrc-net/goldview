@@ -1,6 +1,6 @@
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import type { Node, OpenResult, Rgba, SpriteData, WadTexture, WavInfo } from "./types";
+import type { ModelData, Node, OpenResult, Rgba, SpriteData, WadTexture, WavInfo } from "./types";
 
 /** Pick a game directory and open it (reads its fallback_dir). */
 export async function pickAndOpenMod(): Promise<OpenResult | null> {
@@ -52,6 +52,14 @@ export function loadSprite(path: string): Promise<SpriteData> {
 
 export function spriteThumbnail(path: string, max: number): Promise<Rgba> {
   return invoke<Rgba>("sprite_thumbnail", { path, max });
+}
+
+export function loadModel(path: string, skin = 0): Promise<ModelData> {
+  return invoke<ModelData>("load_model", { path, skin });
+}
+
+export function modelTexture(path: string, index: number): Promise<Rgba> {
+  return invoke<Rgba>("model_texture", { path, index });
 }
 
 export function audioInfo(path: string): Promise<WavInfo> {

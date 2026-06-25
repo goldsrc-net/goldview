@@ -11,6 +11,7 @@
 //!   Phase 5: `spr`, `sc`
 
 pub mod img;
+pub mod mdl;
 pub mod miptex;
 pub mod spr;
 pub mod wad;

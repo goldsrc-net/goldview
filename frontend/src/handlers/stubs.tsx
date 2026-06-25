@@ -23,14 +23,6 @@ export class MapHandler extends StubHandler {
   readonly label = "Maps";
   readonly icon = "🗺️";
   readonly categories: Category[] = ["map"];
-  readonly phase = "Phase 2";
-}
-
-export class ModelHandler extends StubHandler {
-  readonly id = "model";
-  readonly label = "Models";
-  readonly icon = "🧍";
-  readonly categories: Category[] = ["model"];
-  readonly phase = "Phase 3";
+  readonly phase = "the BSP phase";
 }
 

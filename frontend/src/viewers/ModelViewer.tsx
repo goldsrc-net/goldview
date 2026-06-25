@@ -1,0 +1,178 @@
+import { createResource, createSignal, createEffect, onCleanup, Show, For } from "solid-js";
+import * as THREE from "three";
+import { loadModel, modelTexture } from "../api";
+import type { ModelData } from "../types";
+import { FlyControls } from "../three/FlyControls";
+
+/** Static (bind-pose) studiomodel viewer. Builds a Three.js scene from the
+ *  Rust-posed geometry + decoded textures; navigation is pointer-lock fly
+ *  (click to capture, WASD, ESC to release). Animation lands in Phase 4. */
+export default function ModelViewer(props: { path: string }) {
+  const [skin, setSkin] = createSignal(0);
+  const [data] = createResource(
+    () => [props.path, skin()] as const,
+    ([path, sk]) => loadModel(path, sk),
+  );
+  const [locked, setLocked] = createSignal(false);
+  const [wireframe, setWireframe] = createSignal(false);
+
+  let container: HTMLDivElement | undefined;
+  let canvas: HTMLCanvasElement | undefined;
+  // disposables for the current scene build
+  let disposers: Array<() => void> = [];
+
+  function teardown() {
+    disposers.forEach((d) => d());
+    disposers = [];
+  }
+  onCleanup(teardown);
+
+  createEffect(() => {
+    const model = data();
+    const wf = wireframe();
+    if (!model || !canvas || !container) return;
+    teardown();
+    build(canvas, container, props.path, model, wf, setLocked).then((d) => disposers.push(d));
+  });
+
+  return (
+    <>
+      <div class="folder-toolbar">
+        <Show when={data()} fallback={<span class="count">Building model…</span>}>
+          {(m) => (
+            <span class="count">
+              {m().num_bones} bones · {m().textures.length} textures · {m().parts.length} parts
+            </span>
+          )}
+        </Show>
+        <div class="chips" style={{ "margin-left": "12px" }}>
+          <button classList={{ active: wireframe() }} onClick={() => setWireframe((w) => !w)}>
+            wireframe
+          </button>
+        </div>
+        <Show when={(data()?.num_skin_families ?? 1) > 1}>
+          <label class="sort">
+            skin&nbsp;
+            <select value={skin()} onChange={(e) => setSkin(+e.currentTarget.value)}>
+              <For each={Array.from({ length: data()!.num_skin_families }, (_, i) => i)}>
+                {(i) => <option value={i}>{i}</option>}
+              </For>
+            </select>
+          </label>
+        </Show>
+      </div>
+      <div class="viewer-body gl-stage" ref={container}>
+        <canvas ref={canvas} class="gl-canvas" />
+        <div class="gl-hint" classList={{ hidden: locked() }}>
+          click to look · WASD move · Space/Ctrl up/down · Shift faster · ESC release
+        </div>
+      </div>
+    </>
+  );
+}
+
+async function build(
+  canvas: HTMLCanvasElement,
+  container: HTMLElement,
+  path: string,
+  model: ModelData,
+  wireframe: boolean,
+  setLocked: (b: boolean) => void,
+): Promise<() => void> {
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x131417);
+  const camera = new THREE.PerspectiveCamera(60, 1, 1, 100000);
+
+  // GoldSrc is Z-up, X-forward → rotate into Three's Y-up world.
+  const group = new THREE.Group();
+  group.rotation.x = -Math.PI / 2;
+  scene.add(group);
+
+  // decode the textures actually referenced
+  const used = new Set<number>();
+  for (const part of model.parts) for (const sm of part.submeshes) used.add(sm.texture);
+  const texMap = new Map<number, THREE.Texture>();
+  await Promise.all(
+    [...used].map(async (idx) => {
+      try {
+        const rgba = await modelTexture(path, idx);
+        const tex = new THREE.DataTexture(new Uint8Array(rgba.pixels), rgba.width, rgba.height, THREE.RGBAFormat);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.needsUpdate = true;
+        texMap.set(idx, tex);
+      } catch {
+        /* leave untextured */
+      }
+    }),
+  );
+
+  const geoms: THREE.BufferGeometry[] = [];
+  const mats: THREE.Material[] = [];
+  for (const part of model.parts) {
+    for (const sm of part.submeshes) {
+      if (sm.positions.length === 0) continue;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(sm.positions, 3));
+      geo.setAttribute("uv", new THREE.Float32BufferAttribute(sm.uvs, 2));
+      geo.computeVertexNormals();
+      const mat = new THREE.MeshBasicMaterial({
+        map: texMap.get(sm.texture) ?? null,
+        color: texMap.has(sm.texture) ? 0xffffff : 0x9aa0a8,
+        side: THREE.DoubleSide,
+        wireframe,
+      });
+      group.add(new THREE.Mesh(geo, mat));
+      geoms.push(geo);
+      mats.push(mat);
+    }
+  }
+
+  // frame the camera on the model's bounds
+  const box = new THREE.Box3().setFromObject(group);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z, 1);
+  const dist = (maxDim / (2 * Math.tan((camera.fov * Math.PI) / 360))) * 1.4;
+  camera.position.set(center.x, center.y + size.y * 0.1, center.z + dist);
+  camera.lookAt(center);
+
+  const controls = new FlyControls(camera, canvas, {
+    speed: Math.min(Math.max(maxDim * 1.2, 40), 5000),
+    onLockChange: setLocked,
+  });
+
+  const resize = () => {
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    if (w === 0 || h === 0) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  };
+  resize();
+  const ro = new ResizeObserver(resize);
+  ro.observe(container);
+
+  const clock = new THREE.Clock();
+  let raf = 0;
+  const loop = () => {
+    controls.update(clock.getDelta());
+    renderer.render(scene, camera);
+    raf = requestAnimationFrame(loop);
+  };
+  raf = requestAnimationFrame(loop);
+
+  return () => {
+    cancelAnimationFrame(raf);
+    ro.disconnect();
+    controls.dispose();
+    geoms.forEach((g) => g.dispose());
+    mats.forEach((m) => m.dispose());
+    texMap.forEach((t) => t.dispose());
+    renderer.dispose();
+  };
+}

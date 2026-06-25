@@ -2,6 +2,7 @@
 //! payloads (audio, eventually geometry) go through the `goldview://` protocol.
 
 use crate::AppState;
+use gv_formats::mdl::{Model, ModelData};
 use gv_formats::spr::SpriteData;
 use gv_formats::wad::{Wad, WadTexture};
 use gv_formats::{img, spr, Rgba};
@@ -119,6 +120,22 @@ pub fn sprite_thumbnail(state: State<AppState>, path: String, max: u32) -> CmdRe
     let s = spr::decode_sprite(&bytes).map_err(err)?;
     let first = s.frames.into_iter().next().ok_or("sprite has no frames")?;
     Ok(img::downscale(&first, max))
+}
+
+/// Parse a studiomodel + build static (bind-pose) geometry for a skin family.
+#[tauri::command]
+pub fn load_model(state: State<AppState>, path: String, skin: Option<usize>) -> CmdResult<ModelData> {
+    let bytes = read_bytes(&state, &path)?;
+    let model = Model::parse(bytes).map_err(err)?;
+    Ok(model.build(skin.unwrap_or(0)))
+}
+
+/// Decode one of a model's textures to RGBA (for the GL texture atlas).
+#[tauri::command]
+pub fn model_texture(state: State<AppState>, path: String, index: usize) -> CmdResult<Rgba> {
+    let bytes = read_bytes(&state, &path)?;
+    let model = Model::parse(bytes).map_err(err)?;
+    model.texture_rgba(index).ok_or_else(|| format!("no texture {index}"))
 }
 
 /// WAV header info for the audio inspector.
