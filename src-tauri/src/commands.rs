@@ -124,10 +124,15 @@ pub fn sprite_thumbnail(state: State<AppState>, path: String, max: u32) -> CmdRe
 
 /// Parse a studiomodel + build static (bind-pose) geometry for a skin family.
 #[tauri::command]
-pub fn load_model(state: State<AppState>, path: String, skin: Option<usize>) -> CmdResult<ModelData> {
+pub fn load_model(
+    state: State<AppState>,
+    path: String,
+    skin: Option<usize>,
+    bodyparts: Option<Vec<usize>>,
+) -> CmdResult<ModelData> {
     let bytes = read_bytes(&state, &path)?;
     let model = Model::parse(bytes).map_err(err)?;
-    Ok(model.build(skin.unwrap_or(0)))
+    Ok(model.build(skin.unwrap_or(0), &bodyparts.unwrap_or_default()))
 }
 
 /// Decode one of a model's textures to RGBA (for the GL texture atlas).

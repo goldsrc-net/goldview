@@ -68,6 +68,70 @@ export default function ModelPanel() {
                 </For>
               </select>
             </Show>
+
+            {/* body parts: name + submodel selector (stable metadata → no revert) */}
+            <Show when={ctrl.partsMeta().length}>
+              <label class="mp-label">Body parts</label>
+              <For each={ctrl.partsMeta()}>
+                {(part, i) => (
+                  <Show
+                    when={part.models.length > 1}
+                    fallback={<div class="mp-item">{part.name}</div>}
+                  >
+                    <select
+                      class="mp-select"
+                      value={ctrl.bodyparts()[i()] ?? 0}
+                      onChange={(e) => ctrl.setBodypart(i(), +e.currentTarget.value)}
+                    >
+                      <For each={part.models}>
+                        {(mn, mi) => (
+                          <option value={mi()}>
+                            {part.name}: {mn || `model ${mi()}`}
+                          </option>
+                        )}
+                      </For>
+                    </select>
+                  </Show>
+                )}
+              </For>
+            </Show>
+
+            {/* named lists (collapsible) */}
+            <details class="mp-list">
+              <summary>Attachments ({model().attachments.length})</summary>
+              <For each={model().attachments}>
+                {(a) => (
+                  <div class="mp-item">
+                    {a.name || "(unnamed)"}
+                    <span class="mp-num"> → {model().bones[a.bone]?.name ?? a.bone}</span>
+                  </div>
+                )}
+              </For>
+            </details>
+            <details class="mp-list">
+              <summary>Bones ({model().bones.length})</summary>
+              <For each={model().bones}>
+                {(b) => (
+                  <div class="mp-item">
+                    {b.name}
+                    <Show when={b.parent >= 0}>
+                      <span class="mp-num"> ← {model().bones[b.parent]?.name ?? b.parent}</span>
+                    </Show>
+                  </div>
+                )}
+              </For>
+            </details>
+            <details class="mp-list">
+              <summary>Hitboxes ({model().hitboxes.length})</summary>
+              <For each={model().hitboxes}>
+                {(h) => (
+                  <div class="mp-item">
+                    {model().bones[h.bone]?.name ?? h.bone}
+                    <span class="mp-num"> grp {h.group}</span>
+                  </div>
+                )}
+              </For>
+            </details>
           </>
         );
       }}

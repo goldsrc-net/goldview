@@ -10,7 +10,7 @@ fn parse_and_build_real_model() {
     }
     let bytes = std::fs::read(&p).unwrap();
     let model = Model::parse(bytes).expect("parse seraph.mdl");
-    let data = model.build(0);
+    let data = model.build(0, &[]);
 
     assert!(data.num_bones > 0, "model should have bones");
     assert!(!data.textures.is_empty(), "model should have textures");

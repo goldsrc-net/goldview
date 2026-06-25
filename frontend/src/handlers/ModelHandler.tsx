@@ -25,6 +25,9 @@ export class ModelHandler extends ResourceHandler {
     return [
       { label: "bones", value: String(m.num_bones) },
       { label: "body parts", value: String(m.parts.length) },
+      { label: "sequences", value: String(m.sequences.length) },
+      { label: "attachments", value: String(m.attachments.length) },
+      { label: "hitboxes", value: String(m.hitboxes.length) },
       { label: "textures", value: String(m.textures.length) },
       { label: "triangles", value: String(tris) },
     ];

@@ -61,9 +61,6 @@ export default function ModelViewer(props: { path: string }) {
               <button classList={{ active: ctrl().wireframe() }} onClick={() => ctrl().setWireframe(!ctrl().wireframe())}>
                 wire
               </button>
-              <button classList={{ active: ctrl().display().flat }} onClick={() => ctrl().setDisplay("flat", !ctrl().display().flat)}>
-                flat
-              </button>
               <button classList={{ active: ctrl().display().bones }} onClick={() => ctrl().setDisplay("bones", !ctrl().display().bones)}>
                 bones
               </button>

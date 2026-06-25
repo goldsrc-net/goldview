@@ -13,7 +13,6 @@ export interface DisplayOpts {
   hitboxes: boolean;
   bbox: boolean;
   ground: boolean;
-  flat: boolean;
 }
 const DEFAULT_DISPLAY: DisplayOpts = {
   bones: false,
@@ -21,7 +20,6 @@ const DEFAULT_DISPLAY: DisplayOpts = {
   hitboxes: false,
   bbox: false,
   ground: false,
-  flat: false,
 };
 
 /**
@@ -39,6 +37,9 @@ export class ModelController {
   frame!: Accessor<number>;
   frameCount!: Accessor<number>;
   skin!: Accessor<number>;
+  bodyparts!: Accessor<number[]>;
+  /** stable per-part {name, submodel names}, captured once (survives rebuilds) */
+  partsMeta!: Accessor<{ name: string; models: string[] }[]>;
   wireframe!: Accessor<boolean>;
   viewMode!: Accessor<ViewMode>;
   display!: Accessor<DisplayOpts>;
@@ -51,6 +52,8 @@ export class ModelController {
   private setFrameS!: (n: number) => void;
   private setFrameCount!: (n: number) => void;
   private setSkinS!: (n: number) => void;
+  private setBodypartsS!: (n: number[]) => void;
+  private setPartsMetaS!: (p: { name: string; models: string[] }[]) => void;
   private setWireframeS!: (b: boolean) => void;
   private setViewModeS!: (m: ViewMode) => void;
   private setDisplayS!: (d: DisplayOpts) => void;
@@ -92,6 +95,8 @@ export class ModelController {
       const [frame, setFrame] = createSignal(0);
       const [frameCount, setFrameCount] = createSignal(0);
       const [skin, setSkin] = createSignal(0);
+      const [bodyparts, setBodyparts] = createSignal<number[]>([]);
+      const [partsMeta, setPartsMeta] = createSignal<{ name: string; models: string[] }[]>([]);
       const [wireframe, setWireframe] = createSignal(false);
       const [viewMode, setViewMode] = createSignal<ViewMode>("model");
       const [display, setDisplay] = createSignal<DisplayOpts>({ ...DEFAULT_DISPLAY });
@@ -103,6 +108,8 @@ export class ModelController {
       this.frame = frame;
       this.frameCount = frameCount;
       this.skin = skin;
+      this.bodyparts = bodyparts;
+      this.partsMeta = partsMeta;
       this.wireframe = wireframe;
       this.viewMode = viewMode;
       this.display = display;
@@ -114,6 +121,8 @@ export class ModelController {
       this.setFrameS = setFrame;
       this.setFrameCount = setFrameCount;
       this.setSkinS = setSkin;
+      this.setBodypartsS = setBodyparts;
+      this.setPartsMetaS = setPartsMeta;
       this.setWireframeS = setWireframe;
       this.setViewModeS = setViewMode;
       this.setDisplayS = setDisplay;
@@ -134,8 +143,10 @@ export class ModelController {
     this.renderer = renderer;
     const canvas = renderer.domElement;
 
-    const model = await loadModel(this.path, this.skin());
+    const model = await loadModel(this.path, this.skin(), this.bodyparts());
     this.setData(model);
+    // capture the stable body-part metadata once (rebuilds won't recreate the UI)
+    this.setPartsMetaS(model.parts.map((p) => ({ name: p.name, models: p.model_names })));
     await this.buildMesh(model);
     this.frameCamera(model);
     this.controls = new OrbitControls(this.camera, canvas, { target: this.target, radius: this.radius });
@@ -331,6 +342,14 @@ export class ModelController {
     this.setSkinS(s);
     await this.rebuild();
   }
+  /** Choose a submodel for a body part (rebuilds geometry). */
+  async setBodypart(partIndex: number, modelIndex: number) {
+    const arr = [...this.bodyparts()];
+    while (arr.length <= partIndex) arr.push(0);
+    arr[partIndex] = modelIndex;
+    this.setBodypartsS(arr);
+    await this.rebuild();
+  }
   setWireframe(b: boolean) {
     this.setWireframeS(b);
     this.mats.forEach((m) => (m.wireframe = b));
@@ -375,18 +394,11 @@ export class ModelController {
       this.scene.remove(this.groundHelper);
       this.groundHelper = undefined;
     }
-    // flat vs smooth shading
-    this.mats.forEach((m) => {
-      if (m.flatShading !== d.flat) {
-        m.flatShading = d.flat;
-        m.needsUpdate = true;
-      }
-    });
   }
 
   /** Rebuild geometry (e.g. after a skin change), keeping the current sequence. */
   private async rebuild() {
-    const model = await loadModel(this.path, this.skin());
+    const model = await loadModel(this.path, this.skin(), this.bodyparts());
     this.disposeScene();
     this.setData(model);
     await this.buildMesh(model);

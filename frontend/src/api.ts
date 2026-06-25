@@ -54,8 +54,8 @@ export function spriteThumbnail(path: string, max: number): Promise<Rgba> {
   return invoke<Rgba>("sprite_thumbnail", { path, max });
 }
 
-export function loadModel(path: string, skin = 0): Promise<ModelData> {
-  return invoke<ModelData>("load_model", { path, skin });
+export function loadModel(path: string, skin = 0, bodyparts: number[] = []): Promise<ModelData> {
+  return invoke<ModelData>("load_model", { path, skin, bodyparts });
 }
 
 export function modelTexture(path: string, index: number): Promise<Rgba> {

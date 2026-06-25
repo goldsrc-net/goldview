@@ -343,13 +343,14 @@ impl Model {
 
     /// Build static render data: per body part, the submeshes of model 0,
     /// grouped by resolved texture, posed at bind pose.
-    pub fn build(&self, skin_family: usize) -> ModelData {
+    pub fn build(&self, skin_family: usize, bodyparts: &[usize]) -> ModelData {
         let bone_mat = self.setup_bones();
         let fam = self.skins.get(skin_family).or_else(|| self.skins.first());
 
         let mut parts = Vec::new();
-        for bp in &self.body_parts {
-            let model = match bp.models.first() {
+        for (pi, bp) in self.body_parts.iter().enumerate() {
+            let sel = bodyparts.get(pi).copied().unwrap_or(0);
+            let model = match bp.models.get(sel).or_else(|| bp.models.first()) {
                 Some(m) => m,
                 None => {
                     parts.push(PartData {
