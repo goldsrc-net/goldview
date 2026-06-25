@@ -11,6 +11,8 @@
 //!   Phase 5: `spr`, `sc`
 
 pub mod img;
+pub mod miptex;
+pub mod wad;
 
 /// A decoded, top-down RGBA8 image — the common currency for every texture path.
 #[derive(Debug, Clone, serde::Serialize)]

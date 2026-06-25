@@ -31,6 +31,13 @@ export interface Rgba {
   pixels: number[]; // serialized Vec<u8>
 }
 
+export interface WadTexture {
+  name: string;
+  kind: number; // 0x42 qpic, 0x43 miptex, 0x45 font
+  width: number;
+  height: number;
+}
+
 export interface WavInfo {
   channels: number;
   sample_rate: number;

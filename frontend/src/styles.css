@@ -208,6 +208,12 @@ pre.text {
 }
 .tile-loading { width: 60%; height: 60%; background: #1c1d21; border-radius: 4px; animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 0%,100% { opacity: .4; } 50% { opacity: .9; } }
+.cell-label .dim { color: var(--fg-dim); font-size: 10px; }
+.wad-filter {
+  margin-left: auto;
+  background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 4px; padding: 3px 8px; font-size: 11px; width: 180px;
+}
 .tile-generic { flex-direction: column; gap: 4px; }
 .tile-emoji { font-size: 40px; line-height: 1; }
 .tile-ext { font-size: 9px; color: var(--fg-dim); letter-spacing: .5px; }

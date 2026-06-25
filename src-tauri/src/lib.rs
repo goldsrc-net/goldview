@@ -28,6 +28,8 @@ pub fn run() {
             commands::text_preview,
             commands::load_image,
             commands::load_thumbnail,
+            commands::load_wad,
+            commands::wad_texture,
             commands::audio_info,
         ])
         .run(tauri::generate_context!())

@@ -1,5 +1,5 @@
 import { createSignal, createResource, createEffect, onCleanup, Show } from "solid-js";
-import { loadThumbnail, textPreview } from "../api";
+import { loadThumbnail, textPreview, wadTexture } from "../api";
 import { paintRgba } from "../util/canvas";
 import Highlighted, { extOf } from "../viewers/Highlighted";
 
@@ -32,6 +32,29 @@ export function ImageThumb(props: { path: string; size: number }) {
   const [img] = createResource(
     () => (visible() ? props.path : null),
     (p) => loadThumbnail(p, props.size),
+  );
+  let canvas: HTMLCanvasElement | undefined;
+  createEffect(() => {
+    const d = img();
+    if (d && canvas) paintRgba(canvas, d);
+  });
+  return (
+    <div class="tile-preview" ref={ref}>
+      <Show when={img()} fallback={<div class="tile-loading" />}>
+        <Show when={!img.error} fallback={<div class="tile-emoji">⚠️</div>}>
+          <canvas class="tile-canvas" ref={canvas} />
+        </Show>
+      </Show>
+    </div>
+  );
+}
+
+/** Lazy WAD-texture thumbnail (decoded palettized texture painted to canvas). */
+export function WadTexThumb(props: { path: string; name: string }) {
+  const { visible, ref } = useVisible();
+  const [img] = createResource(
+    () => (visible() ? props.name : null),
+    (n) => wadTexture(props.path, n),
   );
   let canvas: HTMLCanvasElement | undefined;
   createEffect(() => {

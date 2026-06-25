@@ -46,11 +46,3 @@ export class SpriteHandler extends StubHandler {
   readonly categories: Category[] = ["sprite"];
   readonly phase = "Phase 5";
 }
-
-export class WadHandler extends StubHandler {
-  readonly id = "wad";
-  readonly label = "WAD archives";
-  readonly icon = "🧱";
-  readonly categories: Category[] = ["wad"];
-  readonly phase = "Phase 1";
-}

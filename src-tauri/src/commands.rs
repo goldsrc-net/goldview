@@ -2,6 +2,7 @@
 //! payloads (audio, eventually geometry) go through the `goldview://` protocol.
 
 use crate::AppState;
+use gv_formats::wad::{Wad, WadTexture};
 use gv_formats::{img, Rgba};
 use gv_vfs::{Mod, Node};
 use tauri::State;
@@ -85,6 +86,22 @@ pub fn text_preview(state: State<AppState>, path: String, max_bytes: usize) -> C
     let bytes = read_bytes(&state, &path)?;
     let end = bytes.len().min(max_bytes);
     Ok(String::from_utf8_lossy(&bytes[..end]).into_owned())
+}
+
+/// List the textures in a WAD3 archive (name/type/dimensions, no full decode).
+#[tauri::command]
+pub fn load_wad(state: State<AppState>, path: String) -> CmdResult<Vec<WadTexture>> {
+    let bytes = read_bytes(&state, &path)?;
+    let wad = Wad::parse(bytes).map_err(err)?;
+    Ok(wad.list())
+}
+
+/// Decode one named texture from a WAD3 archive to RGBA.
+#[tauri::command]
+pub fn wad_texture(state: State<AppState>, path: String, name: String) -> CmdResult<Rgba> {
+    let bytes = read_bytes(&state, &path)?;
+    let wad = Wad::parse(bytes).map_err(err)?;
+    wad.decode(&name).map_err(err)
 }
 
 /// WAV header info for the audio inspector.
