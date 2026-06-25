@@ -10,8 +10,10 @@ import * as THREE from "three";
  */
 export class OrbitControls {
   target = new THREE.Vector3();
-  private theta = Math.PI / 2; // azimuth — start facing the model's +X (front)
-  private phi = Math.PI / 2.2; // polar (from +Y)
+  // Starting angle is just a flattering 3/4 view — the MDL format has no
+  // canonical "front", so we don't pretend to compute head-on. Drag to orbit.
+  private theta = Math.PI * 0.75; // azimuth
+  private phi = Math.PI / 2.3; // polar (from +Y), slightly above horizontal
   private radius: number;
   private minR: number;
   private maxR: number;

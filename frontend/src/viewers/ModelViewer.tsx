@@ -17,20 +17,29 @@ export default function ModelViewer(props: { path: string }) {
 
   let container: HTMLDivElement | undefined;
   let canvas: HTMLCanvasElement | undefined;
-  let disposers: Array<() => void> = [];
+  let scene: Scene | null = null;
 
   function teardown() {
-    disposers.forEach((d) => d());
-    disposers = [];
+    scene?.dispose();
+    scene = null;
   }
   onCleanup(teardown);
 
+  // rebuild only when the model/skin changes (NOT on wireframe toggle)
   createEffect(() => {
     const model = data();
-    const wf = wireframe();
     if (!model || !canvas || !container) return;
     teardown();
-    build(canvas, container, props.path, model, wf).then((d) => disposers.push(d));
+    build(canvas, container, props.path, model).then((s) => {
+      scene = s;
+      s.setWireframe(wireframe());
+    });
+  });
+
+  // wireframe is a live material tweak — never rebuilds the scene/camera
+  createEffect(() => {
+    const wf = wireframe();
+    scene?.setWireframe(wf);
   });
 
   return (
@@ -67,13 +76,17 @@ export default function ModelViewer(props: { path: string }) {
   );
 }
 
+interface Scene {
+  dispose: () => void;
+  setWireframe: (b: boolean) => void;
+}
+
 async function build(
   canvas: HTMLCanvasElement,
   container: HTMLElement,
   path: string,
   model: ModelData,
-  wireframe: boolean,
-): Promise<() => void> {
+): Promise<Scene> {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio);
   const scene = new THREE.Scene();
@@ -118,7 +131,6 @@ async function build(
         map: texMap.get(sm.texture) ?? null,
         color: texMap.has(sm.texture) ? 0xffffff : 0x9aa0a8,
         side: THREE.DoubleSide,
-        wireframe,
       });
       group.add(new THREE.Mesh(geo, mat));
       geoms.push(geo);
@@ -156,13 +168,16 @@ async function build(
   };
   raf = requestAnimationFrame(loop);
 
-  return () => {
-    cancelAnimationFrame(raf);
-    ro.disconnect();
-    controls.dispose();
-    geoms.forEach((g) => g.dispose());
-    mats.forEach((m) => m.dispose());
-    texMap.forEach((t) => t.dispose());
-    renderer.dispose();
+  return {
+    dispose: () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      controls.dispose();
+      geoms.forEach((g) => g.dispose());
+      mats.forEach((m) => m.dispose());
+      texMap.forEach((t) => t.dispose());
+      renderer.dispose();
+    },
+    setWireframe: (b: boolean) => mats.forEach((m) => ((m as THREE.MeshBasicMaterial).wireframe = b)),
   };
 }
