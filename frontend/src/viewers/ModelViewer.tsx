@@ -2,23 +2,21 @@ import { createResource, createSignal, createEffect, onCleanup, Show, For } from
 import * as THREE from "three";
 import { loadModel, modelTexture } from "../api";
 import type { ModelData } from "../types";
-import { FlyControls } from "../three/FlyControls";
+import { OrbitControls } from "../three/OrbitControls";
 
 /** Static (bind-pose) studiomodel viewer. Builds a Three.js scene from the
- *  Rust-posed geometry + decoded textures; navigation is pointer-lock fly
- *  (click to capture, WASD, ESC to release). Animation lands in Phase 4. */
+ *  Rust-posed geometry + decoded textures. Turntable navigation: drag to orbit,
+ *  A/D orbit, W/S + mouse-wheel zoom. Animation lands in Phase 4. */
 export default function ModelViewer(props: { path: string }) {
   const [skin, setSkin] = createSignal(0);
   const [data] = createResource(
     () => [props.path, skin()] as const,
     ([path, sk]) => loadModel(path, sk),
   );
-  const [locked, setLocked] = createSignal(false);
   const [wireframe, setWireframe] = createSignal(false);
 
   let container: HTMLDivElement | undefined;
   let canvas: HTMLCanvasElement | undefined;
-  // disposables for the current scene build
   let disposers: Array<() => void> = [];
 
   function teardown() {
@@ -32,7 +30,7 @@ export default function ModelViewer(props: { path: string }) {
     const wf = wireframe();
     if (!model || !canvas || !container) return;
     teardown();
-    build(canvas, container, props.path, model, wf, setLocked).then((d) => disposers.push(d));
+    build(canvas, container, props.path, model, wf).then((d) => disposers.push(d));
   });
 
   return (
@@ -63,9 +61,7 @@ export default function ModelViewer(props: { path: string }) {
       </div>
       <div class="viewer-body gl-stage" ref={container}>
         <canvas ref={canvas} class="gl-canvas" />
-        <div class="gl-hint" classList={{ hidden: locked() }}>
-          click to look · WASD move · Space/Ctrl up/down · Shift faster · ESC release
-        </div>
+        <div class="gl-hint">drag to rotate · scroll or W/S zoom · A/D rotate</div>
       </div>
     </>
   );
@@ -77,7 +73,6 @@ async function build(
   path: string,
   model: ModelData,
   wireframe: boolean,
-  setLocked: (b: boolean) => void,
 ): Promise<() => void> {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio);
@@ -137,13 +132,8 @@ async function build(
   const size = box.getSize(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z, 1);
   const dist = (maxDim / (2 * Math.tan((camera.fov * Math.PI) / 360))) * 1.4;
-  camera.position.set(center.x, center.y + size.y * 0.1, center.z + dist);
-  camera.lookAt(center);
 
-  const controls = new FlyControls(camera, canvas, {
-    speed: Math.min(Math.max(maxDim * 1.2, 40), 5000),
-    onLockChange: setLocked,
-  });
+  const controls = new OrbitControls(camera, canvas, { target: center, radius: dist });
 
   const resize = () => {
     const w = container.clientWidth;

@@ -323,7 +323,8 @@ impl Model {
                 let t = i16_at(b, p + 6) as f32;
                 p += 8;
                 let pos = posed.get(vi).copied().unwrap_or([0.0; 3]);
-                series.push((pos, s / tw, 1.0 - t / th));
+                // DataTexture is flipY=false with top-down pixels → v = t/h (no flip).
+                series.push((pos, s / tw, t / th));
             }
 
             let push = |positions: &mut Vec<f32>, uvs: &mut Vec<f32>, v: &([f32; 3], f32, f32)| {
