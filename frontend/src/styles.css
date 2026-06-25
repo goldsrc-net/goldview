@@ -154,12 +154,19 @@ pre.text {
 /* zoomable image/sprite stage: a scroll container with a centering wrap whose
    canvas is sized to natural*zoom (uncapped) so it scrolls when bigger. */
 .viewer-body.zoomable { overflow: auto; }
+.viewer-body.pannable { cursor: grab; }
+.viewer-body.pannable.grabbing { cursor: grabbing; }
+.zoom-controls { display: flex; align-items: center; gap: 4px; }
+.zoom-controls button { min-width: 26px; padding: 2px 7px; }
+.zoom-controls .mp-num { min-width: 40px; text-align: center; }
 .zoom-wrap {
   min-width: 100%;
   min-height: 100%;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  /* `safe` centers while it fits, but aligns to start when the content overflows
+     so the top-left stays scrollable (plain center clips it off-screen). */
+  align-items: safe center;
+  justify-content: safe center;
 }
 .img-canvas.zoomed { max-width: none; max-height: none; }
 

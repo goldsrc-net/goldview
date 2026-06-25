@@ -53,5 +53,47 @@ export function createZoom(opts: ZoomOpts = {}) {
   onMount(() => window.addEventListener("keydown", onKey));
   onCleanup(() => window.removeEventListener("keydown", onKey));
 
-  return { zoom, setZoom, attach };
+  const zoomBy = (f: number) => setZoom((z) => clamp(z * f));
+  const reset = () => setZoom(opts.initial ?? 1);
+
+  return { zoom, setZoom, zoomBy, reset, attach };
+}
+
+/**
+ * Click-drag to pan a scroll container by adjusting its scroll position (the
+ * browser clamps it, so it never pans past the edges and does nothing when the
+ * content fits). Ref helper for the zoomable image body.
+ */
+export function enablePan(el: HTMLElement) {
+  let dragging = false;
+  let sx = 0;
+  let sy = 0;
+  let sl = 0;
+  let st = 0;
+  const down = (e: MouseEvent) => {
+    if (e.button !== 0) return;
+    dragging = true;
+    sx = e.clientX;
+    sy = e.clientY;
+    sl = el.scrollLeft;
+    st = el.scrollTop;
+    el.classList.add("grabbing");
+  };
+  const move = (e: MouseEvent) => {
+    if (!dragging) return;
+    el.scrollLeft = sl - (e.clientX - sx);
+    el.scrollTop = st - (e.clientY - sy);
+  };
+  const up = () => {
+    dragging = false;
+    el.classList.remove("grabbing");
+  };
+  el.addEventListener("mousedown", down);
+  window.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", up);
+  onCleanup(() => {
+    el.removeEventListener("mousedown", down);
+    window.removeEventListener("mousemove", move);
+    window.removeEventListener("mouseup", up);
+  });
 }

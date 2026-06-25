@@ -45,7 +45,7 @@ export class ModelController {
   private action?: THREE.AnimationAction;
   private skeleton?: THREE.Skeleton;
   private geoms: THREE.BufferGeometry[] = [];
-  private mats: THREE.MeshBasicMaterial[] = [];
+  private mats: THREE.MeshLambertMaterial[] = [];
   private texMap = new Map<number, THREE.Texture>();
   private clock = new THREE.Clock();
   private raf = 0;
@@ -85,6 +85,11 @@ export class ModelController {
     this.scene.background = new THREE.Color(0x131417);
     this.group.rotation.x = -Math.PI / 2; // GoldSrc Z-up → Three Y-up
     this.scene.add(this.group);
+    // HLMV-style soft shading: bright ambient + a gentle key light (not fullbright)
+    this.scene.add(new THREE.AmbientLight(0xffffff, 1.55));
+    const key = new THREE.DirectionalLight(0xffffff, 1.1);
+    key.position.set(0.5, 1, 0.8);
+    this.scene.add(key);
   }
 
   /** Attach to the viewer's (reused) renderer + start the loop. */
@@ -185,7 +190,7 @@ export class ModelController {
         geo.setAttribute("uv", new THREE.Float32BufferAttribute(sm.uvs, 2));
         geo.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(si, 4));
         geo.setAttribute("skinWeight", new THREE.Float32BufferAttribute(sw, 4));
-        const mat = new THREE.MeshBasicMaterial({
+        const mat = new THREE.MeshLambertMaterial({
           map: this.texMap.get(sm.texture) ?? null,
           color: this.texMap.has(sm.texture) ? 0xffffff : 0x9aa0a8,
           side: THREE.DoubleSide,

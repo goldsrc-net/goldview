@@ -1,14 +1,14 @@
 import { For, Show, createMemo, createResource, createSignal } from "solid-js";
 import { loadWad, wadTexture } from "../api";
 import { WadTexThumb } from "../handlers/lazy";
-import TextureZoom from "./TextureZoom";
+import ImageView from "./ImageView";
 
 /** Grid of every texture in a WAD3 archive, with a name filter. Click a texture
  *  to open a zoomable single-texture view. */
 export default function WadViewer(props: { path: string }) {
   const [list] = createResource(() => props.path, loadWad);
   const [filter, setFilter] = createSignal("");
-  const [selected, setSelected] = createSignal<{ name: string; info: string } | null>(null);
+  const [selected, setSelected] = createSignal<string | null>(null);
   const shown = createMemo(() => {
     const f = filter();
     return (list() ?? []).filter((t) => t.name.toLowerCase().includes(f));
@@ -18,10 +18,10 @@ export default function WadViewer(props: { path: string }) {
     <Show
       when={!selected()}
       fallback={
-        <TextureZoom
-          load={() => wadTexture(props.path, selected()!.name)}
-          name={selected()!.name}
-          info={selected()!.info}
+        <ImageView
+          key={selected()!}
+          load={() => wadTexture(props.path, selected()!)}
+          title={selected()!}
           onBack={() => setSelected(null)}
         />
       }
@@ -47,7 +47,7 @@ export default function WadViewer(props: { path: string }) {
                 <div
                   class="cell"
                   title={`${t.name}  ${t.width}×${t.height}`}
-                  onClick={() => setSelected({ name: t.name, info: `${t.width}×${t.height}` })}
+                  onClick={() => setSelected(t.name)}
                 >
                   <WadTexThumb path={props.path} name={t.name} />
                   <div class="cell-label">

@@ -3,6 +3,7 @@ import { Dynamic } from "solid-js/web";
 import type { Node } from "../types";
 import { registry } from "../handlers/registry";
 import { createZoom } from "../util/zoom";
+import ZoomControls from "./ZoomControls";
 
 /** The center pane. Resolves the selected node to a handler and renders its
  *  full-pane `View`. Owns the Ctrl-zoom state + input (wheel/keys on the whole
@@ -12,7 +13,7 @@ export default function Viewer(props: { node: Node | null; onSelect: (n: Node) =
   const handler = createMemo(() => (props.node ? registry.resolve(props.node) : null));
   const zoomable = () => handler()?.zoom !== "none" && handler()?.zoom != null;
 
-  const { zoom, setZoom, attach } = createZoom({ min: 0.2, max: 12, enabled: zoomable });
+  const { zoom, setZoom, zoomBy, reset, attach } = createZoom({ min: 0.2, max: 12, enabled: zoomable });
   // reset zoom whenever the selection changes
   createEffect(() => {
     props.node?.path;
@@ -36,9 +37,9 @@ export default function Viewer(props: { node: Node | null; onSelect: (n: Node) =
               <strong>{n().name}</strong>
               <span style={{ color: "var(--fg-dim)" }}>{n().path || "/"}</span>
               <Show when={zoomable()}>
-                <span class="zoom-badge" title="Ctrl+scroll / Ctrl+± to zoom, Ctrl+0 reset" onClick={() => setZoom(1)}>
-                  {Math.round(zoom() * 100)}%
-                </span>
+                <div style={{ "margin-left": "auto" }}>
+                  <ZoomControls zoom={zoom} zoomBy={zoomBy} reset={reset} />
+                </div>
               </Show>
             </div>
             <Dynamic
