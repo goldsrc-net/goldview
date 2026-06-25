@@ -5,7 +5,8 @@ import { ImageHandler } from "./ImageHandler";
 import { TextHandler } from "./TextHandler";
 import { SoundHandler } from "./SoundHandler";
 import { WadHandler } from "./WadHandler";
-import { MapHandler, ModelHandler, SpriteHandler } from "./stubs";
+import { SpriteHandler } from "./SpriteHandler";
+import { MapHandler, ModelHandler } from "./stubs";
 
 /** The single registry of resource handlers. Order matters: first
  *  `canHandle` wins. Folders first, then real previews, then the stubs;

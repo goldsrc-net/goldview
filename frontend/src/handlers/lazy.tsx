@@ -1,5 +1,5 @@
-import { createSignal, createResource, createEffect, onCleanup, Show } from "solid-js";
-import { loadThumbnail, textPreview, wadTexture } from "../api";
+import { For, createSignal, createResource, createEffect, onCleanup, Show } from "solid-js";
+import { loadThumbnail, loadWad, spriteThumbnail, textPreview, wadTexture } from "../api";
 import { paintRgba } from "../util/canvas";
 import Highlighted, { extOf } from "../viewers/Highlighted";
 
@@ -67,6 +67,55 @@ export function WadTexThumb(props: { path: string; name: string }) {
         <Show when={!img.error} fallback={<div class="tile-emoji">⚠️</div>}>
           <canvas class="tile-canvas" ref={canvas} />
         </Show>
+      </Show>
+    </div>
+  );
+}
+
+/** Lazy sprite tile: decodes just the first frame, downscaled. */
+export function SpriteThumb(props: { path: string }) {
+  const { visible, ref } = useVisible();
+  const [img] = createResource(
+    () => (visible() ? props.path : null),
+    (p) => spriteThumbnail(p, 128),
+  );
+  let canvas: HTMLCanvasElement | undefined;
+  createEffect(() => {
+    const d = img();
+    if (d && canvas) paintRgba(canvas, d);
+  });
+  return (
+    <div class="tile-preview" ref={ref}>
+      <Show when={img()} fallback={<div class="tile-loading" />}>
+        <Show when={!img.error} fallback={<div class="tile-emoji">✨</div>}>
+          <canvas class="tile-canvas" ref={canvas} />
+        </Show>
+      </Show>
+    </div>
+  );
+}
+
+function WadMini(props: { path: string; name: string }) {
+  const [img] = createResource(() => props.name, (n) => wadTexture(props.path, n));
+  let canvas: HTMLCanvasElement | undefined;
+  createEffect(() => {
+    const d = img();
+    if (d && canvas) paintRgba(canvas, d);
+  });
+  return <canvas class="wad-mini" ref={canvas} />;
+}
+
+/** Lazy WAD folder tile: a 2×2 mini-grid of the archive's first 4 textures. */
+export function WadTilePreview(props: { path: string }) {
+  const { visible, ref } = useVisible();
+  const [list] = createResource(() => (visible() ? props.path : null), loadWad);
+  const first4 = () => (list() ?? []).slice(0, 4);
+  return (
+    <div class="tile-preview" ref={ref}>
+      <Show when={list()} fallback={<div class="tile-loading" />}>
+        <div class="wad-2x2">
+          <For each={first4()}>{(t) => <WadMini path={props.path} name={t.name} />}</For>
+        </div>
       </Show>
     </div>
   );

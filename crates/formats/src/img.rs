@@ -44,6 +44,21 @@ pub fn decode_thumbnail(bytes: &[u8], ext: &str, max: u32) -> Result<Rgba> {
     Ok(Rgba { width: rgba.width(), height: rgba.height(), pixels: rgba.into_raw() })
 }
 
+/// Downscale an already-decoded RGBA buffer to fit within `max`×`max`
+/// (aspect-preserving). Used for sprite/wad tile thumbnails.
+pub fn downscale(src: &Rgba, max: u32) -> Rgba {
+    use image::{DynamicImage, RgbaImage};
+    if src.width <= max && src.height <= max {
+        return src.clone();
+    }
+    let img = match RgbaImage::from_raw(src.width, src.height, src.pixels.clone()) {
+        Some(i) => i,
+        None => return src.clone(),
+    };
+    let t = DynamicImage::ImageRgba8(img).thumbnail(max.max(1), max.max(1)).to_rgba8();
+    Rgba { width: t.width(), height: t.height(), pixels: t.into_raw() }
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct WavInfo {
     pub channels: u16,

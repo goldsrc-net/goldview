@@ -39,10 +39,3 @@ export class ModelHandler extends StubHandler {
   readonly phase = "Phase 3";
 }
 
-export class SpriteHandler extends StubHandler {
-  readonly id = "sprite";
-  readonly label = "Sprites";
-  readonly icon = "✨";
-  readonly categories: Category[] = ["sprite"];
-  readonly phase = "Phase 5";
-}

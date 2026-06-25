@@ -2,8 +2,9 @@
 //! payloads (audio, eventually geometry) go through the `goldview://` protocol.
 
 use crate::AppState;
+use gv_formats::spr::SpriteData;
 use gv_formats::wad::{Wad, WadTexture};
-use gv_formats::{img, Rgba};
+use gv_formats::{img, spr, Rgba};
 use gv_vfs::{Mod, Node};
 use tauri::State;
 
@@ -102,6 +103,22 @@ pub fn wad_texture(state: State<AppState>, path: String, name: String) -> CmdRes
     let bytes = read_bytes(&state, &path)?;
     let wad = Wad::parse(bytes).map_err(err)?;
     wad.decode(&name).map_err(err)
+}
+
+/// Decode a sprite into all of its frames + metadata.
+#[tauri::command]
+pub fn load_sprite(state: State<AppState>, path: String) -> CmdResult<SpriteData> {
+    let bytes = read_bytes(&state, &path)?;
+    spr::decode_sprite(&bytes).map_err(err)
+}
+
+/// Decode just a sprite's first frame, downscaled — for grid tiles.
+#[tauri::command]
+pub fn sprite_thumbnail(state: State<AppState>, path: String, max: u32) -> CmdResult<Rgba> {
+    let bytes = read_bytes(&state, &path)?;
+    let s = spr::decode_sprite(&bytes).map_err(err)?;
+    let first = s.frames.into_iter().next().ok_or("sprite has no frames")?;
+    Ok(img::downscale(&first, max))
 }
 
 /// WAV header info for the audio inspector.

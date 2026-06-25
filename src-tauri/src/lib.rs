@@ -30,6 +30,8 @@ pub fn run() {
             commands::load_thumbnail,
             commands::load_wad,
             commands::wad_texture,
+            commands::load_sprite,
+            commands::sprite_thumbnail,
             commands::audio_info,
         ])
         .run(tauri::generate_context!())

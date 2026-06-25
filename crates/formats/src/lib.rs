@@ -12,6 +12,7 @@
 
 pub mod img;
 pub mod miptex;
+pub mod spr;
 pub mod wad;
 
 /// A decoded, top-down RGBA8 image — the common currency for every texture path.

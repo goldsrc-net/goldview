@@ -38,6 +38,16 @@ export interface WadTexture {
   height: number;
 }
 
+export interface SpriteData {
+  width: number;
+  height: number;
+  num_frames: number;
+  type_name: string;
+  format_name: string;
+  beam_length: number;
+  frames: Rgba[];
+}
+
 export interface WavInfo {
   channels: number;
   sample_rate: number;
