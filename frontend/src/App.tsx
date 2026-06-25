@@ -17,11 +17,12 @@ export default function App() {
 
   function applyOpen(res: OpenResult) {
     setMod(res);
-    setSelected(null);
-    // open the top-level dirs by default
-    const init: Record<string, boolean> = {};
-    for (const c of res.tree.children ?? []) if (c.is_dir) init[c.path] = true;
+    const root = res.tree;
+    // expand the mod root (path "") plus its top-level dirs, and show its grid
+    const init: Record<string, boolean> = { [root.path]: true };
+    for (const c of root.children ?? []) if (c.is_dir) init[c.path] = true;
     setOpen(init);
+    setSelected(root);
   }
 
   onMount(async () => {
