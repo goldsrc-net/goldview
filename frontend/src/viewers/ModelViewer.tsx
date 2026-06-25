@@ -59,8 +59,33 @@ export default function ModelViewer(props: { path: string }) {
             </div>
             <div class="chips" style={{ "margin-left": "auto" }}>
               <button classList={{ active: ctrl().wireframe() }} onClick={() => ctrl().setWireframe(!ctrl().wireframe())}>
-                wireframe
+                wire
               </button>
+              <button classList={{ active: ctrl().display().flat }} onClick={() => ctrl().setDisplay("flat", !ctrl().display().flat)}>
+                flat
+              </button>
+              <button classList={{ active: ctrl().display().bones }} onClick={() => ctrl().setDisplay("bones", !ctrl().display().bones)}>
+                bones
+              </button>
+              <button classList={{ active: ctrl().display().attachments }} onClick={() => ctrl().setDisplay("attachments", !ctrl().display().attachments)}>
+                attach
+              </button>
+              <button classList={{ active: ctrl().display().hitboxes }} onClick={() => ctrl().setDisplay("hitboxes", !ctrl().display().hitboxes)}>
+                hitbox
+              </button>
+              <button classList={{ active: ctrl().display().bbox }} onClick={() => ctrl().setDisplay("bbox", !ctrl().display().bbox)}>
+                bbox
+              </button>
+              <button classList={{ active: ctrl().display().ground }} onClick={() => ctrl().setDisplay("ground", !ctrl().display().ground)}>
+                ground
+              </button>
+              <input
+                type="color"
+                class="bg-pick"
+                value={ctrl().bg()}
+                onInput={(e) => ctrl().setBg(e.currentTarget.value)}
+                title="background color"
+              />
             </div>
           </div>
         )}

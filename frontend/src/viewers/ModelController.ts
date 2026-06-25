@@ -6,6 +6,24 @@ import { OrbitControls } from "../three/OrbitControls";
 
 export type ViewMode = "model" | "textures";
 
+/** HLMV-style display toggles. */
+export interface DisplayOpts {
+  bones: boolean;
+  attachments: boolean;
+  hitboxes: boolean;
+  bbox: boolean;
+  ground: boolean;
+  flat: boolean;
+}
+const DEFAULT_DISPLAY: DisplayOpts = {
+  bones: false,
+  attachments: false,
+  hitboxes: false,
+  bbox: false,
+  ground: false,
+  flat: false,
+};
+
 /**
  * Owns the Three.js scene + all model viewer state for one open model, so the
  * center viewport (ModelViewer) and the sidebar controls (ModelPanel) share it.
@@ -23,6 +41,8 @@ export class ModelController {
   skin!: Accessor<number>;
   wireframe!: Accessor<boolean>;
   viewMode!: Accessor<ViewMode>;
+  display!: Accessor<DisplayOpts>;
+  bg!: Accessor<string>;
 
   private setData!: (d: ModelData | null) => void;
   private setSeqS!: (n: number) => void;
@@ -33,6 +53,8 @@ export class ModelController {
   private setSkinS!: (n: number) => void;
   private setWireframeS!: (b: boolean) => void;
   private setViewModeS!: (m: ViewMode) => void;
+  private setDisplayS!: (d: DisplayOpts) => void;
+  private setBgS!: (s: string) => void;
   private disposeRoot!: () => void;
 
   // three.js
@@ -47,6 +69,11 @@ export class ModelController {
   private geoms: THREE.BufferGeometry[] = [];
   private mats: THREE.MeshLambertMaterial[] = [];
   private texMap = new Map<number, THREE.Texture>();
+  // display helpers (created on first toggle)
+  private boneHelper?: THREE.SkeletonHelper;
+  private bboxHelper?: THREE.Box3Helper;
+  private groundHelper?: THREE.GridHelper;
+  private overlays = new THREE.Group(); // attachments + hitboxes (model space)
   private clock = new THREE.Clock();
   private raf = 0;
   private ro?: ResizeObserver;
@@ -63,6 +90,8 @@ export class ModelController {
       const [skin, setSkin] = createSignal(0);
       const [wireframe, setWireframe] = createSignal(false);
       const [viewMode, setViewMode] = createSignal<ViewMode>("model");
+      const [display, setDisplay] = createSignal<DisplayOpts>({ ...DEFAULT_DISPLAY });
+      const [bg, setBg] = createSignal("#131417");
       this.data = data;
       this.seq = seq;
       this.playing = playing;
@@ -72,6 +101,8 @@ export class ModelController {
       this.skin = skin;
       this.wireframe = wireframe;
       this.viewMode = viewMode;
+      this.display = display;
+      this.bg = bg;
       this.setData = setData;
       this.setSeqS = setSeq;
       this.setPlayingS = setPlaying;
@@ -81,10 +112,13 @@ export class ModelController {
       this.setSkinS = setSkin;
       this.setWireframeS = setWireframe;
       this.setViewModeS = setViewMode;
+      this.setDisplayS = setDisplay;
+      this.setBgS = setBg;
     });
     this.scene.background = new THREE.Color(0x131417);
     this.group.rotation.x = -Math.PI / 2; // GoldSrc Z-up → Three Y-up
     this.scene.add(this.group);
+    this.group.add(this.overlays);
     // HLMV-style soft shading: bright ambient + a gentle key light (not fullbright)
     this.scene.add(new THREE.AmbientLight(0xffffff, 1.55));
     const key = new THREE.DirectionalLight(0xffffff, 1.1);
@@ -205,6 +239,7 @@ export class ModelController {
       }
     }
     this.mixer = new THREE.AnimationMixer(this.group);
+    this.applyDisplay();
   }
 
   /** Load + play a sequence's animation as an AnimationClip. */
@@ -270,6 +305,56 @@ export class ModelController {
   setViewMode(m: ViewMode) {
     this.setViewModeS(m);
   }
+  setDisplay<K extends keyof DisplayOpts>(key: K, val: boolean) {
+    this.setDisplayS({ ...this.display(), [key]: val });
+    this.applyDisplay();
+  }
+  setBg(hex: string) {
+    this.setBgS(hex);
+    this.scene.background = new THREE.Color(hex);
+  }
+
+  /** Sync the optional display helpers (bones/bbox/ground) + flat shading. */
+  private applyDisplay() {
+    const d = this.display();
+    // skeleton
+    if (d.bones && !this.boneHelper) {
+      this.boneHelper = new THREE.SkeletonHelper(this.group);
+      (this.boneHelper.material as THREE.LineBasicMaterial).depthTest = false;
+      this.scene.add(this.boneHelper);
+    } else if (!d.bones && this.boneHelper) {
+      this.scene.remove(this.boneHelper);
+      this.boneHelper = undefined;
+    }
+    // view bounding box (model space → added to the rotated group)
+    if (d.bbox && !this.bboxHelper) {
+      const m = this.data();
+      if (m) {
+        const box = new THREE.Box3(new THREE.Vector3(...m.bbox_min), new THREE.Vector3(...m.bbox_max));
+        this.bboxHelper = new THREE.Box3Helper(box, new THREE.Color(0x2e8b57));
+        this.group.add(this.bboxHelper);
+      }
+    } else if (!d.bbox && this.bboxHelper) {
+      this.group.remove(this.bboxHelper);
+      this.bboxHelper = undefined;
+    }
+    // ground grid at world y=0 (the model's feet plane)
+    if (d.ground && !this.groundHelper) {
+      const size = Math.max(this.radius, 64) * 2;
+      this.groundHelper = new THREE.GridHelper(size, 20, 0x55606b, 0x32373d);
+      this.scene.add(this.groundHelper);
+    } else if (!d.ground && this.groundHelper) {
+      this.scene.remove(this.groundHelper);
+      this.groundHelper = undefined;
+    }
+    // flat vs smooth shading
+    this.mats.forEach((m) => {
+      if (m.flatShading !== d.flat) {
+        m.flatShading = d.flat;
+        m.needsUpdate = true;
+      }
+    });
+  }
 
   /** Rebuild geometry (e.g. after a skin change), keeping the current sequence. */
   private async rebuild() {
@@ -285,8 +370,16 @@ export class ModelController {
     this.mats.forEach((m) => m.dispose());
     this.geoms = [];
     this.mats = [];
-    // remove meshes + bones from the group
-    [...this.group.children].forEach((c) => this.group.remove(c));
+    // remove meshes + bones + bbox from the group, but keep the overlays container
+    [...this.group.children].forEach((c) => {
+      if (c !== this.overlays) this.group.remove(c);
+    });
+    this.overlays.clear();
+    this.bboxHelper = undefined; // was a group child, now removed
+    if (this.boneHelper) {
+      this.scene.remove(this.boneHelper);
+      this.boneHelper = undefined;
+    }
     this.mixer = undefined;
     this.action = undefined;
     this.skeleton = undefined;

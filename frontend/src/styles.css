@@ -159,6 +159,7 @@ pre.text {
 .zoom-controls { display: flex; align-items: center; gap: 4px; }
 .zoom-controls button { min-width: 26px; padding: 2px 7px; }
 .zoom-controls .mp-num { min-width: 40px; text-align: center; }
+.bg-pick { width: 26px; height: 22px; padding: 0; border: 1px solid var(--border); border-radius: 4px; background: none; cursor: pointer; }
 .zoom-wrap {
   min-width: 100%;
   min-height: 100%;
