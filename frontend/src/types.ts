@@ -75,6 +75,17 @@ export interface SeqMeta {
   fps: number;
   num_frames: number;
 }
+export interface AttachOut {
+  name: string;
+  bone: number;
+  pos: [number, number, number];
+}
+export interface HitboxOut {
+  bone: number;
+  group: number;
+  bbmin: [number, number, number];
+  bbmax: [number, number, number];
+}
 export interface ModelData {
   name: string;
   num_bones: number;
@@ -82,6 +93,8 @@ export interface ModelData {
   textures: ModelTexture[];
   num_skin_families: number;
   sequences: SeqMeta[];
+  attachments: AttachOut[];
+  hitboxes: HitboxOut[];
   parts: PartData[];
   bbox_min: [number, number, number];
   bbox_max: [number, number, number];

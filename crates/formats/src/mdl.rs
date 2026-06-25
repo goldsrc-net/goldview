@@ -79,6 +79,8 @@ pub struct Model {
     /// skins[family][skinRef] -> texture index
     skins: Vec<Vec<u16>>,
     sequences: Vec<SeqRaw>,
+    attachments: Vec<AttachOut>,
+    hitboxes: Vec<HitboxOut>,
     tri_buf_base: usize,
     bytes: Vec<u8>,
 }
@@ -119,6 +121,23 @@ pub struct SeqMeta {
     pub num_frames: usize,
 }
 
+#[derive(Clone, serde::Serialize)]
+pub struct AttachOut {
+    pub name: String,
+    pub bone: i32,
+    /// attachment origin in its bone's local space
+    pub pos: [f32; 3],
+}
+
+#[derive(Clone, serde::Serialize)]
+pub struct HitboxOut {
+    pub bone: i32,
+    pub group: i32,
+    /// box corners in the bone's local space
+    pub bbmin: [f32; 3],
+    pub bbmax: [f32; 3],
+}
+
 #[derive(serde::Serialize)]
 pub struct ModelData {
     pub name: String,
@@ -127,6 +146,8 @@ pub struct ModelData {
     pub textures: Vec<ModelTexture>,
     pub num_skin_families: usize,
     pub sequences: Vec<SeqMeta>,
+    pub attachments: Vec<AttachOut>,
+    pub hitboxes: Vec<HitboxOut>,
     /// one entry per body part: name, selectable submodel names, and the
     /// submeshes of the currently-selected submodel
     pub parts: Vec<PartData>,
@@ -256,12 +277,41 @@ impl Model {
             });
         }
 
+        // attachments: name[32], type(32), bone(36), org(40 vec3), vectors[3] = 88 bytes
+        let num_attach = i32_at(&bytes, 212).max(0) as usize;
+        let attach_index = i32_at(&bytes, 216) as usize;
+        let mut attachments = Vec::with_capacity(num_attach);
+        for i in 0..num_attach {
+            let o = attach_index + i * 88;
+            attachments.push(AttachOut {
+                name: cstr_at(&bytes, o, 32),
+                bone: i32_at(&bytes, o + 36),
+                pos: vec3_at(&bytes, o + 40),
+            });
+        }
+
+        // hitboxes: bone(0), group(4), bbmin(8 vec3), bbmax(20 vec3) = 32 bytes
+        let num_hb = i32_at(&bytes, 156).max(0) as usize;
+        let hb_index = i32_at(&bytes, 160) as usize;
+        let mut hitboxes = Vec::with_capacity(num_hb);
+        for i in 0..num_hb {
+            let o = hb_index + i * 32;
+            hitboxes.push(HitboxOut {
+                bone: i32_at(&bytes, o),
+                group: i32_at(&bytes, o + 4),
+                bbmin: vec3_at(&bytes, o + 8),
+                bbmax: vec3_at(&bytes, o + 20),
+            });
+        }
+
         Ok(Model {
             bones,
             body_parts,
             textures,
             skins,
             sequences,
+            attachments,
+            hitboxes,
             tri_buf_base: 0,
             bytes,
         })
@@ -368,6 +418,8 @@ impl Model {
                 .iter()
                 .map(|s| SeqMeta { name: s.name.clone(), fps: s.fps, num_frames: s.num_frames })
                 .collect(),
+            attachments: self.attachments.clone(),
+            hitboxes: self.hitboxes.clone(),
             parts,
             bbox_min: vec3_at(&self.bytes, 112),
             bbox_max: vec3_at(&self.bytes, 124),

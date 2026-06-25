@@ -73,7 +73,11 @@ export class ModelController {
   private boneHelper?: THREE.SkeletonHelper;
   private bboxHelper?: THREE.Box3Helper;
   private groundHelper?: THREE.GridHelper;
-  private overlays = new THREE.Group(); // attachments + hitboxes (model space)
+  // attachment markers + hitbox boxes, parented to their bones so they animate
+  private attachObjs: THREE.Object3D[] = [];
+  private hitboxObjs: THREE.Box3Helper[] = [];
+  private attachGeo?: THREE.SphereGeometry;
+  private attachMat?: THREE.MeshBasicMaterial;
   private clock = new THREE.Clock();
   private raf = 0;
   private ro?: ResizeObserver;
@@ -118,7 +122,6 @@ export class ModelController {
     this.scene.background = new THREE.Color(0x131417);
     this.group.rotation.x = -Math.PI / 2; // GoldSrc Z-up → Three Y-up
     this.scene.add(this.group);
-    this.group.add(this.overlays);
     // HLMV-style soft shading: bright ambient + a gentle key light (not fullbright)
     this.scene.add(new THREE.AmbientLight(0xffffff, 1.55));
     const key = new THREE.DirectionalLight(0xffffff, 1.1);
@@ -224,6 +227,7 @@ export class ModelController {
         geo.setAttribute("uv", new THREE.Float32BufferAttribute(sm.uvs, 2));
         geo.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(si, 4));
         geo.setAttribute("skinWeight", new THREE.Float32BufferAttribute(sw, 4));
+        geo.computeVertexNormals(); // smooth normals (flat toggle uses face normals)
         const mat = new THREE.MeshLambertMaterial({
           map: this.texMap.get(sm.texture) ?? null,
           color: this.texMap.has(sm.texture) ? 0xffffff : 0x9aa0a8,
@@ -238,6 +242,35 @@ export class ModelController {
         this.mats.push(mat);
       }
     }
+    // skeleton overlay — bright, drawn over the model (hidden until toggled)
+    this.boneHelper = new THREE.SkeletonHelper(this.group);
+    const bhm = this.boneHelper.material as THREE.LineBasicMaterial;
+    bhm.vertexColors = false;
+    bhm.color = new THREE.Color(0xffcc33);
+    bhm.depthTest = false;
+    bhm.needsUpdate = true;
+    this.boneHelper.visible = false;
+    this.scene.add(this.boneHelper);
+
+    // attachment markers (spheres) + hitbox boxes, parented to bones → animate
+    this.attachGeo = new THREE.SphereGeometry(1.3, 8, 6);
+    this.attachMat = new THREE.MeshBasicMaterial({ color: 0x33e0ff, depthTest: false });
+    this.attachObjs = model.attachments.map((a) => {
+      const m = new THREE.Mesh(this.attachGeo!, this.attachMat!);
+      m.position.set(a.pos[0], a.pos[1], a.pos[2]);
+      m.visible = false;
+      (bones[a.bone] ?? this.group).add(m);
+      return m;
+    });
+    this.hitboxObjs = model.hitboxes.map((h) => {
+      const box = new THREE.Box3(new THREE.Vector3(...h.bbmin), new THREE.Vector3(...h.bbmax));
+      const helper = new THREE.Box3Helper(box, new THREE.Color(0xff5566));
+      (helper.material as THREE.LineBasicMaterial).depthTest = false;
+      helper.visible = false;
+      (bones[h.bone] ?? this.group).add(helper);
+      return helper;
+    });
+
     this.mixer = new THREE.AnimationMixer(this.group);
     this.applyDisplay();
   }
@@ -314,28 +347,23 @@ export class ModelController {
     this.scene.background = new THREE.Color(hex);
   }
 
-  /** Sync the optional display helpers (bones/bbox/ground) + flat shading. */
+  /** Sync the display helpers/overlays to the current toggles. */
   private applyDisplay() {
     const d = this.display();
-    // skeleton
-    if (d.bones && !this.boneHelper) {
-      this.boneHelper = new THREE.SkeletonHelper(this.group);
-      (this.boneHelper.material as THREE.LineBasicMaterial).depthTest = false;
-      this.scene.add(this.boneHelper);
-    } else if (!d.bones && this.boneHelper) {
-      this.scene.remove(this.boneHelper);
-      this.boneHelper = undefined;
-    }
-    // view bounding box (model space → added to the rotated group)
+    // built-in-buildMesh overlays: just toggle visibility
+    if (this.boneHelper) this.boneHelper.visible = d.bones;
+    this.attachObjs.forEach((o) => (o.visible = d.attachments));
+    this.hitboxObjs.forEach((o) => (o.visible = d.hitboxes));
+    // bounding box — from the actual geometry bounds (studiohdr bbox is often
+    // zero), in world space so it's reliably visible.
     if (d.bbox && !this.bboxHelper) {
-      const m = this.data();
-      if (m) {
-        const box = new THREE.Box3(new THREE.Vector3(...m.bbox_min), new THREE.Vector3(...m.bbox_max));
-        this.bboxHelper = new THREE.Box3Helper(box, new THREE.Color(0x2e8b57));
-        this.group.add(this.bboxHelper);
+      const box = new THREE.Box3().setFromObject(this.group);
+      if (!box.isEmpty()) {
+        this.bboxHelper = new THREE.Box3Helper(box, new THREE.Color(0x3fd07a));
+        this.scene.add(this.bboxHelper);
       }
     } else if (!d.bbox && this.bboxHelper) {
-      this.group.remove(this.bboxHelper);
+      this.scene.remove(this.bboxHelper);
       this.bboxHelper = undefined;
     }
     // ground grid at world y=0 (the model's feet plane)
@@ -370,12 +398,20 @@ export class ModelController {
     this.mats.forEach((m) => m.dispose());
     this.geoms = [];
     this.mats = [];
-    // remove meshes + bones + bbox from the group, but keep the overlays container
-    [...this.group.children].forEach((c) => {
-      if (c !== this.overlays) this.group.remove(c);
+    // remove meshes + bones (attach/hitbox overlays are bone children → go too)
+    [...this.group.children].forEach((c) => this.group.remove(c));
+    this.hitboxObjs.forEach((h) => {
+      h.geometry.dispose();
+      (h.material as THREE.Material).dispose();
     });
-    this.overlays.clear();
-    this.bboxHelper = undefined; // was a group child, now removed
+    this.attachGeo?.dispose();
+    this.attachMat?.dispose();
+    this.attachObjs = [];
+    this.hitboxObjs = [];
+    if (this.bboxHelper) {
+      this.scene.remove(this.bboxHelper);
+      this.bboxHelper = undefined;
+    }
     if (this.boneHelper) {
       this.scene.remove(this.boneHelper);
       this.boneHelper = undefined;
