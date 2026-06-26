@@ -68,6 +68,44 @@ export default function App() {
     return out;
   });
 
+  // path -> Node, over the whole tree (for redirect lookups)
+  const nodeIndex = createMemo<Map<string, Node>>(() => {
+    const map = new Map<string, Node>();
+    const walk = (n: Node) => {
+      map.set(n.path, n);
+      for (const c of n.children ?? []) walk(c);
+    };
+    const root = mod()?.tree;
+    if (root) walk(root);
+    return map;
+  });
+
+  // Auxiliary MDL files that aren't standalone: `<name>T.mdl` (external textures)
+  // and `<name>NN.mdl` (sequence groups). Map each to its main `<name>.mdl` so we
+  // can grey them out and redirect clicks. Keyed off the sibling main existing.
+  const auxRedirect = createMemo<Map<string, string>>(() => {
+    const idx = nodeIndex();
+    const map = new Map<string, string>();
+    for (const [path, node] of idx) {
+      if (node.is_dir || !path.toLowerCase().endsWith(".mdl")) continue;
+      const cut = path.lastIndexOf("/") + 1; // 0 if no slash
+      const dir = path.slice(0, cut);
+      const base = path.slice(cut, path.length - 4); // name without ".mdl"
+      const seq = base.match(/^(.*?)(\d\d)$/); // sequence group <stem>NN
+      const tex = base.match(/^(.*)t$/i); // external textures <stem>t
+      const stem = seq?.[1] ?? tex?.[1];
+      const main = stem && `${dir}${stem}.mdl`;
+      if (main && main !== path && idx.has(main)) map.set(path, main);
+    }
+    return map;
+  });
+
+  /** Select a node, redirecting aux models (`*t.mdl`/`*NN.mdl`) to their main. */
+  const selectNode = (n: Node) => {
+    const target = auxRedirect().get(n.path);
+    setSelected((target && nodeIndex().get(target)) || n);
+  };
+
   const parentPath = (p: string) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
 
   // Keyboard nav: ↑/↓ move selection through the visible rows; → expand / step in;
@@ -75,7 +113,8 @@ export default function App() {
   function onTreeKey(e: KeyboardEvent) {
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
-    const list = flatVisible();
+    const aux = auxRedirect();
+    const list = flatVisible().filter((n) => !aux.has(n.path)); // skip greyed aux rows
     if (!list.length) return;
     const cur = selected();
     const idx = cur ? list.findIndex((n) => n.path === cur.path) : -1;
@@ -179,15 +218,16 @@ export default function App() {
                   selected={selected()?.path ?? ""}
                   filter={filter()}
                   open={openSet()}
+                  aux={new Set(auxRedirect().keys())}
                   onToggle={toggle}
-                  onSelect={setSelected}
+                  onSelect={selectNode}
                 />
               </div>
             )}
           </Show>
         </div>
 
-        <Viewer node={selected()} onSelect={setSelected} />
+        <Viewer node={selected()} onSelect={selectNode} />
 
         <div class="pane inspector">
           <h3>Inspector</h3>
@@ -200,7 +240,7 @@ export default function App() {
               const panel = createMemo(() => registry.resolve(n()).Panel);
               return (
                 <Show when={panel()}>
-                  <Dynamic component={panel()!} node={n()} onSelect={setSelected} zoom={1} />
+                  <Dynamic component={panel()!} node={n()} onSelect={selectNode} zoom={1} />
                 </Show>
               );
             }}

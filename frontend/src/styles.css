@@ -96,6 +96,7 @@ button:active { background: #3a3c42; }
 }
 .row:hover { background: var(--bg2); }
 .row.sel { background: var(--accent2); color: #fff; }
+.row.aux { opacity: 0.45; font-style: italic; }
 .row .twisty { width: 12px; color: var(--fg-dim); flex: 0 0 auto; }
 .row .icon { width: 16px; text-align: center; flex: 0 0 auto; }
 .row .label { overflow: hidden; text-overflow: ellipsis; }

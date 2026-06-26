@@ -25,6 +25,8 @@ interface Props {
   selected: string;
   filter: string;
   open: Set<string>;
+  /** paths of auxiliary models (`*t.mdl`/`*NN.mdl`) — greyed, click redirects */
+  aux: Set<string>;
   onToggle: (path: string) => void;
   onSelect: (n: Node) => void;
 }
@@ -39,7 +41,8 @@ export function TreeRow(props: Props) {
     <Show when={matches(props.node, props.filter)}>
       <div
         class="row"
-        classList={{ sel: props.selected === props.node.path }}
+        classList={{ sel: props.selected === props.node.path, aux: props.aux.has(props.node.path) }}
+        title={props.aux.has(props.node.path) ? "auxiliary model — opens the main model" : undefined}
         style={{ "padding-left": `${4 + props.depth * 14}px` }}
         onClick={() => {
           props.onSelect(props.node);
@@ -62,6 +65,7 @@ export function TreeRow(props: Props) {
               selected={props.selected}
               filter={props.filter}
               open={props.open}
+              aux={props.aux}
               onToggle={props.onToggle}
               onSelect={props.onSelect}
             />
