@@ -1,11 +1,11 @@
 import { createEffect, on, onCleanup, Show, createSignal, For } from "solid-js";
 import * as THREE from "three";
-import { loadBsp, bspTexture, loadModel } from "../api";
-import type { BspData, BspEntity } from "../types";
+import { loadBsp, bspTexture, loadModel, loadSprite } from "../api";
+import type { BspData, BspEntity, Rgba } from "../types";
 import { FlyControls } from "../three/FlyControls";
 import { buildStaticModel, disposeStaticModel } from "../three/staticModel";
 import { loadSkybox } from "../three/skybox";
-import { entityModelPath, entityOrigin, entityYaw } from "./bspEntityModels";
+import { entityModelPath, entitySpritePath, entityOrigin, entityYaw, entityScale, entityRenderColor } from "./bspEntityModels";
 
 const VOID_COLOR = new THREE.Color(0x0e0f12);
 
@@ -94,6 +94,8 @@ export default function BspViewer(props: { path: string }) {
   const entityGroup = new THREE.Group(); // entity models (Z-up, in `group` space)
   group.add(entityGroup);
   const entityTemplates: THREE.Group[] = []; // own the geo/mats/textures (clones share)
+  const spriteMats: THREE.SpriteMaterial[] = []; // env_sprite/env_glow billboard materials
+  const spriteTextures: THREE.Texture[] = []; // one per distinct .spr (shared across placements)
   const camera = new THREE.PerspectiveCamera(75, 1, 4, 100000);
 
   const geoms: THREE.BufferGeometry[] = [];
@@ -111,6 +113,10 @@ export default function BspViewer(props: { path: string }) {
     [...entityGroup.children].forEach((c) => entityGroup.remove(c));
     entityTemplates.forEach(disposeStaticModel);
     entityTemplates.length = 0;
+    spriteMats.forEach((m) => m.dispose());
+    spriteMats.length = 0;
+    spriteTextures.forEach((t) => t.dispose());
+    spriteTextures.length = 0;
     surfaceMeshes = [];
     geoms.forEach((g) => g.dispose());
     geoms.length = 0;
@@ -264,6 +270,63 @@ export default function BspViewer(props: { path: string }) {
     setInfo(`${tris.toLocaleString()} tris · ${data.surfaces.length} surfaces · ${data.entities.length} entities`);
     frameCamera(data);
     loadEntityModels(data); // async, fills entityGroup as models arrive
+    loadEntitySprites(data); // async, env_sprite/env_glow billboards
+  }
+
+  /** Build a camera-facing texture from a decoded RGBA frame. */
+  function rgbaTexture(r: Rgba): THREE.DataTexture {
+    const t = new THREE.DataTexture(new Uint8Array(r.pixels), r.width, r.height, THREE.RGBAFormat);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.minFilter = t.magFilter = THREE.LinearFilter;
+    t.needsUpdate = true;
+    return t;
+  }
+
+  /** Render `.spr` entities (env_sprite/env_glow/…) as camera-facing billboards at
+   *  their origin. Blend/colour/scale come from the SPR format + entity render
+   *  keys; one texture per distinct sprite is shared across its placements. Frame
+   *  0 only (multi-frame sprite animation is a follow-up). */
+  async function loadEntitySprites(data: BspData) {
+    const byPath = new Map<string, BspEntity[]>();
+    for (const e of data.entities) {
+      const p = entitySpritePath(e);
+      if (!p) continue;
+      (byPath.get(p) ?? byPath.set(p, []).get(p)!).push(e);
+    }
+    let placed = 0;
+    await Promise.all(
+      [...byPath].map(async ([path, ents]) => {
+        const sd = await loadSprite(path).catch(() => null);
+        if (!sd || !sd.frames.length) return;
+        const tex = rgbaTexture(sd.frames[0]);
+        spriteTextures.push(tex);
+        const addFmt = sd.format_name === "additive" || sd.format_name === "indexalpha";
+        const alphaTest = sd.format_name === "alphatest" ? 0.5 : 0;
+        for (const e of ents) {
+          const mode = parseInt(e.keys.rendermode ?? "", 10);
+          const amt = parseInt(e.keys.renderamt ?? "", 10);
+          const mat = new THREE.SpriteMaterial({
+            map: tex,
+            transparent: true,
+            opacity: Number.isFinite(amt) && amt > 0 ? amt / 255 : 1,
+            alphaTest,
+            blending: addFmt || mode === 3 || mode === 5 ? THREE.AdditiveBlending : THREE.NormalBlending,
+            depthWrite: false,
+          });
+          const color = entityRenderColor(e);
+          if (color) mat.color.setRGB(color[0], color[1], color[2], THREE.SRGBColorSpace);
+          spriteMats.push(mat);
+          const spr = new THREE.Sprite(mat);
+          const s = entityScale(e);
+          spr.scale.set(sd.width * s, sd.height * s, 1);
+          spr.position.set(...entityOrigin(e));
+          entityGroup.add(spr);
+          placed++;
+        }
+      }),
+    );
+    entityGroup.visible = showEntities();
+    if (placed) setInfo((str) => `${str} · ${placed} sprites`);
   }
 
   /** Load each distinct referenced model once and clone it at every entity that

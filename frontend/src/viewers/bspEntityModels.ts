@@ -49,6 +49,27 @@ export function entityModelPath(e: BspEntity): string | null {
   return w ? `models/${w}` : null;
 }
 
+/** Resolve an entity's `.spr` path (env_sprite/env_glow/cycler_sprite + any entity
+ *  whose `model` is a sprite). Null if it isn't a sprite entity. */
+export function entitySpritePath(e: BspEntity): string | null {
+  const model = e.keys.model;
+  return model && model.toLowerCase().endsWith(".spr") ? model : null;
+}
+
+/** Entity `scale` key (sprite size multiplier); 1 if absent or 0. */
+export function entityScale(e: BspEntity): number {
+  const s = Number(e.keys.scale);
+  return Number.isFinite(s) && s > 0 ? s : 1;
+}
+
+/** Entity `rendercolor` ("R G B", 0-255) → [r,g,b] in 0-1, or null for the
+ *  unset/black default (meaning "no tint" → use the texture's own colour). */
+export function entityRenderColor(e: BspEntity): [number, number, number] | null {
+  const p = (e.keys.rendercolor ?? "").trim().split(/\s+/).map(Number);
+  if (p.length !== 3 || !p.every((n) => Number.isFinite(n)) || (p[0] === 0 && p[1] === 0 && p[2] === 0)) return null;
+  return [p[0] / 255, p[1] / 255, p[2] / 255];
+}
+
 /** Parse an entity `origin` ("x y z") to a tuple; [0,0,0] if absent/malformed. */
 export function entityOrigin(e: BspEntity): [number, number, number] {
   const p = (e.keys.origin ?? "").trim().split(/\s+/).map(Number);
