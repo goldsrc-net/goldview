@@ -1,7 +1,7 @@
 import { createRoot, createSignal, type Accessor } from "solid-js";
 import * as THREE from "three";
 import { loadModel, loadAnimation, modelTexture } from "../api";
-import type { ModelData } from "../types";
+import type { ModelData, PartMeta } from "../types";
 import { OrbitControls } from "../three/OrbitControls";
 
 export type ViewMode = "model" | "textures";
@@ -39,7 +39,7 @@ export class ModelController {
   skin!: Accessor<number>;
   bodyparts!: Accessor<number[]>;
   /** stable per-part {name, submodel names}, captured once (survives rebuilds) */
-  partsMeta!: Accessor<{ name: string; models: string[] }[]>;
+  partsMeta!: Accessor<PartMeta[]>;
   wireframe!: Accessor<boolean>;
   viewMode!: Accessor<ViewMode>;
   display!: Accessor<DisplayOpts>;
@@ -53,7 +53,7 @@ export class ModelController {
   private setFrameCount!: (n: number) => void;
   private setSkinS!: (n: number) => void;
   private setBodypartsS!: (n: number[]) => void;
-  private setPartsMetaS!: (p: { name: string; models: string[] }[]) => void;
+  private setPartsMetaS!: (p: PartMeta[]) => void;
   private setWireframeS!: (b: boolean) => void;
   private setViewModeS!: (m: ViewMode) => void;
   private setDisplayS!: (d: DisplayOpts) => void;
@@ -96,7 +96,7 @@ export class ModelController {
       const [frameCount, setFrameCount] = createSignal(0);
       const [skin, setSkin] = createSignal(0);
       const [bodyparts, setBodyparts] = createSignal<number[]>([]);
-      const [partsMeta, setPartsMeta] = createSignal<{ name: string; models: string[] }[]>([]);
+      const [partsMeta, setPartsMeta] = createSignal<PartMeta[]>([]);
       const [wireframe, setWireframe] = createSignal(false);
       const [viewMode, setViewMode] = createSignal<ViewMode>("model");
       const [display, setDisplay] = createSignal<DisplayOpts>({ ...DEFAULT_DISPLAY });

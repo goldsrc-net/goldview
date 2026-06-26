@@ -64,6 +64,13 @@ export interface PartData {
   model_names: string[];
   submeshes: SubMesh[];
 }
+/** Stable per-body-part metadata (name + selectable submodel names), captured
+ *  once for the panel's submodel selectors so geometry rebuilds don't recreate
+ *  the UI. A projection of {@link PartData} minus the heavy submesh arrays. */
+export interface PartMeta {
+  name: string;
+  models: string[];
+}
 export interface BoneOut {
   name: string;
   parent: number;
