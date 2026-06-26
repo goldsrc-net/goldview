@@ -2,7 +2,7 @@ import { createEffect, createMemo, createResource, createSignal, onCleanup, onMo
 import { Dynamic } from "solid-js/web";
 import { createStore } from "solid-js/store";
 import type { Detail, Node, OpenResult } from "./types";
-import { pickAndOpenMod, startupMod } from "./api";
+import { pickAndOpenMod, revealPath, startupMod } from "./api";
 import { TreeRow, matches, nodeOpen } from "./tree/Tree";
 import Viewer from "./viewers/Viewer";
 import KV from "./viewers/KV";
@@ -232,7 +232,14 @@ export default function App() {
         <div class="pane inspector">
           <h3>Inspector</h3>
           <Show when={selected()} fallback={<div style={{ color: "var(--fg-dim)" }}>No selection.</div>}>
-            <KV rows={inspectorRows()} />
+            {(n) => (
+              <>
+                <KV rows={inspectorRows()} />
+                <button class="reveal-btn" onClick={() => revealPath(n().path).catch((e) => setError(String(e)))}>
+                  {n().is_dir ? "📂 Open folder" : "📂 Show in folder"}
+                </button>
+              </>
+            )}
           </Show>
           <Show when={selected()}>
             {(n) => {

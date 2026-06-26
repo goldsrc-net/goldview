@@ -36,6 +36,7 @@ pub fn run() {
             commands::model_texture,
             commands::load_animation,
             commands::audio_info,
+            commands::reveal_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running goldview");

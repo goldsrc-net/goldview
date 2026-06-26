@@ -70,6 +70,11 @@ export function audioInfo(path: string): Promise<WavInfo> {
   return invoke<WavInfo>("audio_info", { path });
 }
 
+/** Open the OS file manager at the resource's folder. */
+export function revealPath(path: string): Promise<void> {
+  return invoke<void>("reveal_path", { path });
+}
+
 /** Build a goldview:// URL for a relative resource path (raw bytes). */
 export function rawUrl(path: string): string {
   return convertFileSrc(path, "goldview");

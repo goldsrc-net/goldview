@@ -190,6 +190,22 @@ pub fn load_animation(state: State<AppState>, path: String, seq: usize) -> CmdRe
     Ok(model.decode_animation(seq, ext.as_deref()))
 }
 
+/// Open the OS file manager at this resource's location — the folder itself, or
+/// the containing folder for a file. Empty path opens the mod root.
+#[tauri::command]
+pub fn reveal_path(state: State<AppState>, path: String) -> CmdResult<()> {
+    let guard = state.current.lock().unwrap();
+    let m = guard.as_ref().ok_or("no mod open")?;
+    let abs = if path.is_empty() {
+        m.roots.first().cloned().ok_or("no root")?
+    } else {
+        m.resolve(&path).ok_or_else(|| format!("not found: {path}"))?
+    };
+    let target = if abs.is_dir() { abs.as_path() } else { abs.parent().unwrap_or(&abs) };
+    std::process::Command::new("xdg-open").arg(target).spawn().map_err(err)?;
+    Ok(())
+}
+
 /// WAV header info for the audio inspector.
 #[tauri::command]
 pub fn audio_info(state: State<AppState>, path: String) -> CmdResult<img::WavInfo> {
