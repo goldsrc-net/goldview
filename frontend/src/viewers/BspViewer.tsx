@@ -101,6 +101,8 @@ export default function BspViewer(props: { path: string }) {
   const flatMat = new THREE.MeshNormalMaterial({ flatShading: true });
   let surfaceMeshes: THREE.Mesh[] = []; // world surfaces (not entityGroup)
   let texturedMats: THREE.MeshBasicMaterial[] = []; // parallel to surfaceMeshes
+  let animated: { mat: THREE.MeshBasicMaterial; frames: THREE.Texture[] }[] = []; // +0/+1… cycling
+  let animClock = 0; // seconds, drives texture-frame animation
   let lightmap: THREE.DataTexture | undefined;
   const missing = missingTexture();
 
@@ -114,6 +116,7 @@ export default function BspViewer(props: { path: string }) {
     geoms.length = 0;
     texturedMats.forEach((m) => m.dispose());
     texturedMats = [];
+    animated = [];
     texMap.forEach((t) => t.dispose());
     texMap.clear();
     lightmap?.dispose();
@@ -168,9 +171,31 @@ export default function BspViewer(props: { path: string }) {
     lightmap.channel = 1; // sample via the geometry's uv1 (lightmap) attribute
     lightmap.needsUpdate = true;
 
-    // textures actually used by surfaces (deduped)
+    // animated textures: `+0base, +1base, …` (main sequence). Only bases with ≥2
+    // frames are continuous animations — a lone `+0` is a toggle default (e.g. a
+    // button/medkit, switched by entity state) and stays static. The `+a…` set is
+    // the alternate (toggled) state; we show the main sequence. `animFrames` maps a
+    // base name → its frame texture indices in order.
+    const animFrames = new Map<string, number[]>();
+    {
+      const byBase = new Map<string, Map<number, number>>();
+      data.textures.forEach((t, i) => {
+        const m = /^\+(\d)(.*)$/.exec(t.name);
+        if (!m) return;
+        const base = m[2].toLowerCase();
+        (byBase.get(base) ?? byBase.set(base, new Map()).get(base)!).set(parseInt(m[1], 10), i);
+      });
+      for (const [base, frames] of byBase) {
+        if (frames.size < 2) continue;
+        animFrames.set(base, [...frames.entries()].sort((a, b) => a[0] - b[0]).map(([, i]) => i));
+      }
+    }
+
+    // textures actually used by surfaces (deduped) + every animation frame (the
+    // sibling frames aren't referenced by faces directly, so add them explicitly)
     const maxAniso = renderer?.capabilities.getMaxAnisotropy() ?? 1;
     const used = new Set(data.surfaces.map((s) => s.texture));
+    for (const frames of animFrames.values()) for (const i of frames) used.add(i);
     await Promise.all(
       [...used].map(async (idx) => {
         try {
@@ -225,6 +250,13 @@ export default function BspViewer(props: { path: string }) {
       group.add(mesh);
       surfaceMeshes.push(mesh);
       geoms.push(geo);
+      // register for frame cycling if this surface's texture is an animation base
+      const am = /^\+\d(.*)$/.exec(name.toLowerCase());
+      const frameIdx = am && animFrames.get(am[1]);
+      if (frameIdx) {
+        const frames = frameIdx.map((i) => texMap.get(i)).filter(Boolean) as THREE.Texture[];
+        if (frames.length >= 2) animated.push({ mat, frames });
+      }
     }
     applyMode();
 
@@ -310,7 +342,19 @@ export default function BspViewer(props: { path: string }) {
           ro.observe(container);
           const clock = new THREE.Clock();
           const loop = () => {
-            controls?.update(clock.getDelta());
+            const dt = clock.getDelta();
+            controls?.update(dt);
+            if (animated.length) {
+              animClock += dt;
+              const f = Math.floor(animClock * 10); // GoldSrc cycles texture frames at 10 fps
+              for (const a of animated) {
+                const tex = a.frames[f % a.frames.length];
+                if (a.mat.map !== tex) {
+                  a.mat.map = tex;
+                  a.mat.needsUpdate = true;
+                }
+              }
+            }
             renderer!.render(scene, camera);
             raf = requestAnimationFrame(loop);
           };
