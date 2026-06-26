@@ -49,7 +49,8 @@ fn parse_model_with_textures(state: &State<AppState>, path: &str) -> CmdResult<M
     Ok(model)
 }
 
-/// Open a game directory (reads its `fallback_dir`) and return the merged tree.
+/// Open a game directory (reads its `fallback_dir`) and return the resource tree
+/// (one top-level folder per game dir in the chain — ts/, valve/ — kept separate).
 #[tauri::command]
 pub fn open_mod(state: State<AppState>, path: String) -> CmdResult<OpenResult> {
     let m = Mod::open(&path).map_err(err)?;

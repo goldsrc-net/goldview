@@ -3,9 +3,11 @@
 //! A GoldSrc mod is a game directory (e.g. `ts/`) with a `fallback_dir` (e.g.
 //! `valve/`) declared in `liblist.gam`. Files the mod overrides live in `ts/`;
 //! everything else falls back to `valve/`. This crate models that chain: it
-//! resolves relative resource paths across the chain, walks it into a single
-//! merged & typed resource tree, and safely maps a relative path back to an
-//! absolute on-disk path for the asset protocol (with traversal guards).
+//! resolves resource paths across the chain (for asset loading), walks it into a
+//! typed resource tree that keeps each game dir as a SEPARATE top-level folder
+//! (display is per-root, never intermixed; node paths are root-prefixed), and
+//! safely maps a path back to an absolute on-disk path for the asset protocol
+//! (with traversal guards).
 
 use anyhow::{anyhow, Context, Result};
 use std::collections::BTreeMap;
@@ -110,6 +112,36 @@ impl Mod {
     /// are stitched together this way), so we deliberately do NOT require the
     /// symlink-resolved path to stay under the root.
     pub fn resolve(&self, rel: &str) -> Option<PathBuf> {
+        let trimmed = rel.trim_start_matches('/');
+        // Root-qualified path? The first segment names a game dir in the chain
+        // (tree nodes are emitted this way: `valve/maps/x`). Prefer that exact
+        // root, then fall back to the chain. A bare root name → the root dir.
+        let first = trimmed.split('/').next().unwrap_or("");
+        if !first.is_empty() {
+            if let Some(idx) = self.names.iter().position(|n| n == first) {
+                let rest = trimmed[first.len()..].trim_start_matches('/');
+                if rest.is_empty() {
+                    return Some(self.roots[idx].clone());
+                }
+                if let Some(r) = sanitize_rel(rest) {
+                    let p = self.roots[idx].join(&r);
+                    if p.exists() {
+                        return Some(p);
+                    }
+                    if let Some(p) = resolve_ci(&self.roots[idx], &r) {
+                        return Some(p);
+                    }
+                }
+                return self.resolve_chain(rest);
+            }
+        }
+        // Plain relative path (asset dependency: a wad, sibling .mdl, skybox face…)
+        self.resolve_chain(trimmed)
+    }
+
+    /// Resolve a root-relative path across the whole chain (earliest root wins),
+    /// with a case-insensitive retry (`barneyt.mdl` referenced as `barneyT.mdl`).
+    fn resolve_chain(&self, rel: &str) -> Option<PathBuf> {
         let rel = sanitize_rel(rel)?;
         for root in &self.roots {
             let p = root.join(&rel);
@@ -117,8 +149,6 @@ impl Mod {
                 return Some(p);
             }
         }
-        // Case-insensitive fallback: GoldSrc assets are conventionally
-        // case-insensitive (e.g. `barneyt.mdl` referenced as `barneyT.mdl`).
         for root in &self.roots {
             if let Some(p) = resolve_ci(root, &rel) {
                 return Some(p);
@@ -127,18 +157,15 @@ impl Mod {
         None
     }
 
-    /// Build the merged, typed resource tree across the whole chain. A path that
-    /// exists in multiple roots is listed once, attributed to the earliest root.
+    /// Build the typed resource tree. Each game dir in the chain is its own
+    /// top-level folder (`ts/`, `valve/`) under an unnamed container — the dirs
+    /// are shown SEPARATELY, never intermixed (the chain is only merged for asset
+    /// *resolution*, not display). Node paths are root-prefixed (`valve/maps/x`),
+    /// which [`Mod::resolve`] understands. A file present in several roots appears
+    /// once under each.
     pub fn tree(&self) -> Node {
-        // Collect a union of relative paths -> (size, source root index).
-        let mut files: BTreeMap<String, (u64, usize)> = BTreeMap::new();
-        let mut dirs: BTreeMap<String, ()> = BTreeMap::new();
-        for (idx, root) in self.roots.iter().enumerate() {
-            walk(root, root, idx, &mut files, &mut dirs);
-        }
-
-        let mut root_node = Node {
-            name: self.names.first().cloned().unwrap_or_else(|| "mod".into()),
+        let mut container = Node {
+            name: String::new(),
             path: String::new(),
             is_dir: true,
             category: None,
@@ -147,17 +174,34 @@ impl Mod {
             children: Vec::new(),
         };
 
-        // Insert directories first so empty-ish dirs still appear, then files.
-        for d in dirs.keys() {
-            insert(&mut root_node, d, None);
-        }
-        for (path, (size, src)) in &files {
-            let ext = Path::new(path).extension().and_then(|e| e.to_str()).unwrap_or("");
-            insert(&mut root_node, path, Some((*size, *src, Category::from_ext(ext))));
-        }
+        for (idx, root) in self.roots.iter().enumerate() {
+            let name = self.names.get(idx).cloned().unwrap_or_else(|| format!("root{idx}"));
+            // walk THIS root only (so the folders aren't intermixed)
+            let mut files: BTreeMap<String, (u64, usize)> = BTreeMap::new();
+            let mut dirs: BTreeMap<String, ()> = BTreeMap::new();
+            walk(root, root, idx, &mut files, &mut dirs);
 
-        sort_tree(&mut root_node);
-        root_node
+            let mut sub = Node {
+                name: name.clone(),
+                path: name, // the chain key prefix; `insert` extends it per child
+                is_dir: true,
+                category: None,
+                size: None,
+                source: None,
+                children: Vec::new(),
+            };
+            // directories first (so empty-ish dirs still appear), then files
+            for d in dirs.keys() {
+                insert(&mut sub, d, None);
+            }
+            for (path, (size, src)) in &files {
+                let ext = Path::new(path).extension().and_then(|e| e.to_str()).unwrap_or("");
+                insert(&mut sub, path, Some((*size, *src, Category::from_ext(ext))));
+            }
+            sort_tree(&mut sub);
+            container.children.push(sub);
+        }
+        container
     }
 }
 
@@ -266,8 +310,8 @@ fn insert(root: &mut Node, path: &str, file: Option<(u64, usize, Category)>) {
     if parts.is_empty() {
         return;
     }
+    let mut acc = root.path.clone(); // seed with the subtree root so paths are root-prefixed
     let mut node = root;
-    let mut acc = String::new();
     for (i, part) in parts.iter().enumerate() {
         if !acc.is_empty() {
             acc.push('/');

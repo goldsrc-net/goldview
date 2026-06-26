@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createResource, createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { createStore } from "solid-js/store";
 import type { Detail, Node, OpenResult } from "./types";
@@ -45,10 +45,15 @@ export default function App() {
 
   function applyOpen(res: OpenResult) {
     setMod(res);
-    const root = res.tree;
-    // expand only the mod root, revealing its top-level dirs (collapsed); show its grid
-    setOpen({ [root.path]: true });
-    setSelected(root);
+    // top level is one folder per game dir (ts/, valve/). Expand + select the mod
+    // dir (the first root), revealing its top-level dirs (collapsed); show its grid.
+    const modRoot = res.tree.children?.[0];
+    if (modRoot) {
+      setOpen({ [modRoot.path]: true });
+      setSelected(modRoot);
+    } else {
+      setSelected(res.tree);
+    }
   }
 
   // The visible rows, flattened in display order (respects open state + filter) —
@@ -64,7 +69,7 @@ export default function App() {
       out.push(n);
       if (n.is_dir && nodeOpen(n, open, f)) for (const c of n.children ?? []) walk(c);
     };
-    walk(root);
+    for (const c of root.children ?? []) walk(c); // skip the unnamed container; roots are the top level
     return out;
   });
 
@@ -212,16 +217,20 @@ export default function App() {
                   value={filter()}
                   onInput={(e) => setFilter(e.currentTarget.value.toLowerCase())}
                 />
-                <TreeRow
-                  node={m().tree}
-                  depth={0}
-                  selected={selected()?.path ?? ""}
-                  filter={filter()}
-                  open={openSet()}
-                  aux={new Set(auxRedirect().keys())}
-                  onToggle={toggle}
-                  onSelect={selectNode}
-                />
+                <For each={m().tree.children ?? []}>
+                  {(rootFolder) => (
+                    <TreeRow
+                      node={rootFolder}
+                      depth={0}
+                      selected={selected()?.path ?? ""}
+                      filter={filter()}
+                      open={openSet()}
+                      aux={new Set(auxRedirect().keys())}
+                      onToggle={toggle}
+                      onSelect={selectNode}
+                    />
+                  )}
+                </For>
               </div>
             )}
           </Show>
