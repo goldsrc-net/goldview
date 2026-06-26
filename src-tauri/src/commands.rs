@@ -2,6 +2,7 @@
 //! payloads (audio, eventually geometry) go through the `goldview://` protocol.
 
 use crate::AppState;
+use gv_formats::bsp::{Bsp, BspData};
 use gv_formats::mdl::{Model, ModelData};
 use gv_formats::spr::SpriteData;
 use gv_formats::wad::{Wad, WadTexture};
@@ -204,6 +205,14 @@ pub fn reveal_path(state: State<AppState>, path: String) -> CmdResult<()> {
     let target = if abs.is_dir() { abs.as_path() } else { abs.parent().unwrap_or(&abs) };
     std::process::Command::new("xdg-open").arg(target).spawn().map_err(err)?;
     Ok(())
+}
+
+/// Parse a BSP map → render-ready surfaces, textures, and entities.
+#[tauri::command]
+pub fn load_bsp(state: State<AppState>, path: String) -> CmdResult<BspData> {
+    let bytes = read_bytes(&state, &path)?;
+    let bsp = Bsp::parse(bytes).map_err(err)?;
+    Ok(bsp.build())
 }
 
 /// WAV header info for the audio inspector.

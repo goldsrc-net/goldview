@@ -10,6 +10,7 @@
 //!   Phase 3-4: `mdl`
 //!   Phase 5: `spr`, `sc`
 
+pub mod bsp;
 pub mod img;
 pub mod mdl;
 pub mod miptex;

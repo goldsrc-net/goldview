@@ -110,6 +110,29 @@ export interface HitboxOut {
   bbmin: [number, number, number];
   bbmax: [number, number, number];
 }
+export interface BspSurface {
+  texture: number;
+  positions: number[];
+  uvs: number[];
+  normals: number[];
+}
+export interface BspTexture {
+  name: string;
+  width: number;
+  height: number;
+  embedded: boolean;
+}
+export interface BspEntity {
+  keys: Record<string, string>;
+}
+export interface BspData {
+  surfaces: BspSurface[];
+  textures: BspTexture[];
+  entities: BspEntity[];
+  bbox_min: [number, number, number];
+  bbox_max: [number, number, number];
+}
+
 export interface ModelData {
   name: string;
   num_bones: number;

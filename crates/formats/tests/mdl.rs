@@ -86,3 +86,23 @@ fn bodypart_selection_changes_geometry() {
     eprintln!("submodel0={} verts, submodel1={} verts ({:?})", verts(part0), verts(part1), part0.model_names);
     assert_ne!(verts(part0), verts(part1), "selecting submodel 1 must change geometry vs submodel 0");
 }
+
+#[test]
+fn parse_bsp_geometry() {
+    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../xash3d-fwgs/dist/client-x64/valve/maps/boot_camp.bsp");
+    if !p.exists() {
+        eprintln!("skip: boot_camp.bsp not present");
+        return;
+    }
+    let bsp = gv_formats::bsp::Bsp::parse(std::fs::read(&p).unwrap()).expect("parse bsp");
+    let data = bsp.build();
+    let tris: usize = data.surfaces.iter().map(|s| s.positions.len() / 9).sum();
+    assert!(tris > 1000, "expected map geometry, got {tris} tris");
+    assert!(!data.textures.is_empty());
+    assert!(data.entities.iter().any(|e| e.keys.get("classname").map(|c| c == "worldspawn").unwrap_or(false)));
+    for s in &data.surfaces {
+        assert_eq!(s.positions.len() % 9, 0); // whole triangles
+        assert_eq!(s.positions.len() / 3, s.uvs.len() / 2);
+    }
+}
