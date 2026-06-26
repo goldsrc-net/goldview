@@ -87,20 +87,32 @@ pub fn decode_qpic(data: &[u8]) -> Result<Rgba> {
     Ok(palettize(indices, palette, width, height, PaletteMode::Opaque))
 }
 
-/// Best-effort qfont decode: `qpic` header + a 256-entry charinfo table before
-/// the pixels. Layout: `u32 width, u32 height, u32 rowcount, u32 rowheight,
-/// 256*(u16,u16) charinfo, [w*h indices], u16 count, palette`.
+/// Fixed glyph-sheet width for HL `qfont` lumps.
+pub const QFONT_WIDTH: u32 = 256;
+
+/// qfont height field lives at offset 4 (offset 0 is an unused max-width field).
+pub fn qfont_height(data: &[u8]) -> u32 {
+    rd_u32(data, 4).unwrap_or(0)
+}
+
+/// Decode a HL `qfont` lump. Layout: `int maxwidth, int height, int rowcount,
+/// int rowheight, 256×{u16 startoffset, u16 charwidth}, [256×height indices],
+/// 256×3 palette` (no palette count). The sheet is always 256 wide.
 pub fn decode_qfont(data: &[u8]) -> Result<Rgba> {
-    let width = rd_u32(data, 0)?;
-    let height = rd_u32(data, 4)?;
-    if width == 0 || height == 0 || width > 8192 || height > 8192 {
-        return Err(anyhow!("bad qfont size {width}x{height}"));
+    let width = QFONT_WIDTH;
+    let height = qfont_height(data);
+    if height == 0 || height > 8192 {
+        return Err(anyhow!("bad qfont height {height}"));
     }
-    let pix_off = 16 + 256 * 4;
+    let pix_off = 16 + 256 * 4; // 4 ints + 256 charinfo entries
     let npix = (width as usize) * (height as usize);
     let indices = data
         .get(pix_off..pix_off + npix)
         .ok_or_else(|| anyhow!("qfont pixels out of range"))?;
-    let palette = read_palette(data, pix_off + npix)?;
-    Ok(palettize(indices, palette, width, height, PaletteMode::ColorKey))
+    let pal_off = pix_off + npix;
+    let palette = data
+        .get(pal_off..pal_off + 768)
+        .ok_or_else(|| anyhow!("qfont palette out of range"))?;
+    // index 0 is the transparent background
+    Ok(palettize(indices, palette, width, height, PaletteMode::ColorKey0))
 }

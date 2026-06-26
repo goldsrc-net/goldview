@@ -1,13 +1,13 @@
 //! WAD3 texture archive (GoldSrc). Layout: a `WAD3` header, raw lumps, then a
 //! directory of fixed 32-byte entries. Lump types: 0x42 qpic, 0x43 miptex
-//! (most), 0x45 qfont. HL WADs are uncompressed.
+//! (most), 0x46 qfont. HL WADs are uncompressed.
 
 use crate::{miptex, Rgba};
 use anyhow::{anyhow, Result};
 
 const TYPE_QPIC: u8 = 0x42;
 const TYPE_MIPTEX: u8 = 0x43;
-const TYPE_QFONT: u8 = 0x45;
+const TYPE_QFONT: u8 = 0x46;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct WadTexture {
@@ -67,12 +67,11 @@ impl Wad {
             .iter()
             .map(|e| {
                 let data = self.bytes.get(e.pos..e.pos + e.size).unwrap_or(&[]);
+                let rd = |o: usize| u32::from_le_bytes(data.get(o..o + 4).map(|s| [s[0], s[1], s[2], s[3]]).unwrap_or_default());
                 let (width, height) = match e.kind {
                     TYPE_MIPTEX => miptex::miptex_dimensions(data).map(|(_, w, h)| (w, h)).unwrap_or((0, 0)),
-                    TYPE_QPIC | TYPE_QFONT => (
-                        u32::from_le_bytes(data.get(0..4).map(|s| [s[0], s[1], s[2], s[3]]).unwrap_or_default()),
-                        u32::from_le_bytes(data.get(4..8).map(|s| [s[0], s[1], s[2], s[3]]).unwrap_or_default()),
-                    ),
+                    TYPE_QPIC => (rd(0), rd(4)),
+                    TYPE_QFONT => (miptex::QFONT_WIDTH, miptex::qfont_height(data)),
                     _ => (0, 0),
                 };
                 WadTexture { name: e.name.clone(), kind: e.kind, width, height }

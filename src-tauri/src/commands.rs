@@ -24,6 +24,30 @@ fn ext_of(path: &str) -> &str {
     }
 }
 
+/// The path without its `.mdl`/`.MDL` extension (case-insensitive), or `None` if
+/// it isn't a `.mdl`. The base for sibling lookups (`<stem>t.mdl`, `<stem>NN.mdl`).
+fn mdl_stem(path: &str) -> Option<&str> {
+    let cut = path.len().checked_sub(4)?;
+    path[cut..].eq_ignore_ascii_case(".mdl").then(|| &path[..cut])
+}
+
+/// Parse a studiomodel, pulling in external textures from the sibling
+/// `<name>T.mdl` when the main model has none (numtextures==0). `resolve` is
+/// case-insensitive, so the lowercase `t.mdl` matches any-case sibling.
+fn parse_model_with_textures(state: &State<AppState>, path: &str) -> CmdResult<Model> {
+    let mut model = Model::parse(read_bytes(state, path)?).map_err(err)?;
+    if !model.has_textures() {
+        if let Some(stem) = mdl_stem(path) {
+            if let Ok(bytes) = read_bytes(state, &format!("{stem}t.mdl")) {
+                if let Ok(tex) = Model::parse(bytes) {
+                    model.adopt_textures(tex);
+                }
+            }
+        }
+    }
+    Ok(model)
+}
+
 /// Open a game directory (reads its `fallback_dir`) and return the merged tree.
 #[tauri::command]
 pub fn open_mod(state: State<AppState>, path: String) -> CmdResult<OpenResult> {
@@ -139,16 +163,14 @@ pub fn load_model(
     skin: Option<usize>,
     bodyparts: Option<Vec<usize>>,
 ) -> CmdResult<ModelData> {
-    let bytes = read_bytes(&state, &path)?;
-    let model = Model::parse(bytes).map_err(err)?;
+    let model = parse_model_with_textures(&state, &path)?;
     Ok(model.build(skin.unwrap_or(0), &bodyparts.unwrap_or_default()))
 }
 
 /// Decode one of a model's textures to RGBA (for the GL texture atlas).
 #[tauri::command]
 pub fn model_texture(state: State<AppState>, path: String, index: usize) -> CmdResult<Rgba> {
-    let bytes = read_bytes(&state, &path)?;
-    let model = Model::parse(bytes).map_err(err)?;
+    let model = parse_model_with_textures(&state, &path)?;
     model.texture_rgba(index).ok_or_else(|| format!("no texture {index}"))
 }
 
@@ -160,9 +182,8 @@ pub fn load_animation(state: State<AppState>, path: String, seq: usize) -> CmdRe
     let model = Model::parse(bytes).map_err(err)?;
     let group = model.sequence_group(seq);
     let ext = if group > 0 {
-        let stem = path.strip_suffix(".mdl").or_else(|| path.strip_suffix(".MDL")).unwrap_or(&path);
-        let group_path = format!("{stem}{group:02}.mdl");
-        Some(read_bytes(&state, &group_path)?)
+        let stem = mdl_stem(&path).unwrap_or(&path);
+        Some(read_bytes(&state, &format!("{stem}{group:02}.mdl"))?)
     } else {
         None
     };

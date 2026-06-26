@@ -116,6 +116,13 @@ impl Mod {
                 return Some(p);
             }
         }
+        // Case-insensitive fallback: GoldSrc assets are conventionally
+        // case-insensitive (e.g. `barneyt.mdl` referenced as `barneyT.mdl`).
+        for root in &self.roots {
+            if let Some(p) = resolve_ci(root, &rel) {
+                return Some(p);
+            }
+        }
         None
     }
 
@@ -169,6 +176,22 @@ fn read_fallback_dir(dir: &Path) -> Option<String> {
 }
 
 /// Normalize a relative path: forward slashes, no `..`, no absolute, no `.`.
+/// Walk `rel` under `root` matching each component case-insensitively. Used as a
+/// fallback when an exact-case path doesn't exist. Stays within `root` (walks
+/// real directory entries), so it inherits the same traversal guard as `resolve`.
+fn resolve_ci(root: &Path, rel: &Path) -> Option<PathBuf> {
+    let mut cur = root.to_path_buf();
+    for comp in rel.components() {
+        let want = comp.as_os_str().to_str()?;
+        let hit = std::fs::read_dir(&cur)
+            .ok()?
+            .flatten()
+            .find(|e| e.file_name().to_str().map(|n| n.eq_ignore_ascii_case(want)).unwrap_or(false))?;
+        cur = hit.path();
+    }
+    Some(cur)
+}
+
 fn sanitize_rel(rel: &str) -> Option<PathBuf> {
     let rel = rel.trim_start_matches('/');
     let mut out = PathBuf::new();

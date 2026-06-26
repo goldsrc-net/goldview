@@ -550,6 +550,21 @@ impl Model {
             pixels: t.rgba.clone(),
         })
     }
+
+    /// True if this model carries its own textures. When false, the textures
+    /// (and skin table) live in the sibling `<name>T.mdl` (engine convention for
+    /// models whose studiohdr has `numtextures == 0`).
+    pub fn has_textures(&self) -> bool {
+        !self.textures.is_empty()
+    }
+
+    /// Adopt the textures + skin table from an external `<name>T.mdl` model, so
+    /// this (geometry-only) model resolves its mesh skin-refs against them.
+    /// Textures are decoded at parse time, so they're self-contained.
+    pub fn adopt_textures(&mut self, src: Model) {
+        self.textures = src.textures;
+        self.skins = src.skins;
+    }
 }
 
 /// MDL texture: w*h palette indices then 256*3 RGB palette, at `off`. Opaque.
