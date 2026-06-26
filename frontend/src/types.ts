@@ -31,6 +31,13 @@ export interface Rgba {
   pixels: number[]; // serialized Vec<u8>
 }
 
+/** A single label→value row, shown in the inspector and other key/value grids.
+ *  Handlers contribute these via `details()`; rendered by the shared `KV`. */
+export interface Detail {
+  label: string;
+  value: string;
+}
+
 export interface WadTexture {
   name: string;
   kind: number; // 0x42 qpic, 0x43 miptex, 0x45 font

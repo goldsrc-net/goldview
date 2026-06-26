@@ -1,5 +1,7 @@
 import { createResource, Show } from "solid-js";
 import { audioInfo, rawUrl } from "../api";
+import { wavDetails } from "../util/format";
+import KV from "./KV";
 
 export default function AudioPlayer(props: { path: string }) {
   const isWav = () => props.path.toLowerCase().endsWith(".wav");
@@ -10,16 +12,10 @@ export default function AudioPlayer(props: { path: string }) {
         <audio controls src={rawUrl(props.path)} style={{ width: "420px" }} />
         <Show when={isWav() && info()}>
           {(i) => (
-            <div class="kv" style={{ "margin-top": "16px", "text-align": "left", display: "inline-grid" }}>
-              <span class="k">sample rate</span>
-              <span class="v">{i().sample_rate} Hz</span>
-              <span class="k">channels</span>
-              <span class="v">{i().channels}</span>
-              <span class="k">bits</span>
-              <span class="v">{i().bits_per_sample}</span>
-              <span class="k">duration</span>
-              <span class="v">{i().duration_secs.toFixed(2)} s</span>
-            </div>
+            <KV
+              rows={wavDetails(i())}
+              style={{ "margin-top": "16px", "text-align": "left", display: "inline-grid" }}
+            />
           )}
         </Show>
       </div>

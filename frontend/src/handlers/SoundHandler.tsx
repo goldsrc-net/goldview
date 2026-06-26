@@ -1,7 +1,8 @@
 import type { Component } from "solid-js";
-import type { Category, Node } from "../types";
-import { Detail, ResourceHandler, ViewProps } from "./Handler";
+import type { Category, Detail, Node } from "../types";
+import { ResourceHandler, ViewProps } from "./Handler";
 import { audioInfo } from "../api";
+import { wavDetails } from "../util/format";
 import AudioPlayer from "../viewers/AudioPlayer";
 
 export class SoundHandler extends ResourceHandler {
@@ -15,11 +16,6 @@ export class SoundHandler extends ResourceHandler {
 
   async details(node: Node): Promise<Detail[]> {
     if (!node.path.toLowerCase().endsWith(".wav")) return [];
-    const i = await audioInfo(node.path);
-    return [
-      { label: "sample rate", value: `${i.sample_rate} Hz` },
-      { label: "channels", value: String(i.channels) },
-      { label: "duration", value: `${i.duration_secs.toFixed(2)} s` },
-    ];
+    return wavDetails(await audioInfo(node.path));
   }
 }

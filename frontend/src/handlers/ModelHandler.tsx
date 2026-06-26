@@ -1,6 +1,6 @@
 import type { Component } from "solid-js";
-import type { Category, Node } from "../types";
-import { Detail, ResourceHandler, ViewProps } from "./Handler";
+import type { Category, Detail, Node } from "../types";
+import { ResourceHandler, ViewProps } from "./Handler";
 import { loadModel } from "../api";
 import ModelViewer from "../viewers/ModelViewer";
 import ModelPanel from "../viewers/ModelPanel";

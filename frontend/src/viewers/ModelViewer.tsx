@@ -1,6 +1,6 @@
-import { createEffect, on, onCleanup, Show } from "solid-js";
+import { createEffect, For, on, onCleanup, Show } from "solid-js";
 import * as THREE from "three";
-import { ModelController, currentModel, setCurrentModel } from "./ModelController";
+import { ModelController, currentModel, setCurrentModel, DISPLAY_TOGGLES } from "./ModelController";
 import { LazyCanvas } from "../handlers/lazy";
 import { modelTexture } from "../api";
 import Gallery from "./Gallery";
@@ -69,21 +69,16 @@ export default function ModelViewer(props: { path: string }) {
               <button classList={{ active: ctrl().wireframe() }} onClick={() => ctrl().setWireframe(!ctrl().wireframe())}>
                 wire
               </button>
-              <button classList={{ active: ctrl().display().bones }} onClick={() => ctrl().setDisplay("bones", !ctrl().display().bones)}>
-                bones
-              </button>
-              <button classList={{ active: ctrl().display().attachments }} onClick={() => ctrl().setDisplay("attachments", !ctrl().display().attachments)}>
-                attach
-              </button>
-              <button classList={{ active: ctrl().display().hitboxes }} onClick={() => ctrl().setDisplay("hitboxes", !ctrl().display().hitboxes)}>
-                hitbox
-              </button>
-              <button classList={{ active: ctrl().display().bbox }} onClick={() => ctrl().setDisplay("bbox", !ctrl().display().bbox)}>
-                bbox
-              </button>
-              <button classList={{ active: ctrl().display().ground }} onClick={() => ctrl().setDisplay("ground", !ctrl().display().ground)}>
-                ground
-              </button>
+              <For each={DISPLAY_TOGGLES}>
+                {(t) => (
+                  <button
+                    classList={{ active: ctrl().display()[t.key] }}
+                    onClick={() => ctrl().setDisplay(t.key, !ctrl().display()[t.key])}
+                  >
+                    {t.label}
+                  </button>
+                )}
+              </For>
               <input
                 type="color"
                 class="bg-pick"

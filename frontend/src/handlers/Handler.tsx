@@ -1,17 +1,11 @@
 import { Show, type Component } from "solid-js";
-import type { Category, Node } from "../types";
+import type { Category, Detail, Node } from "../types";
 import { extOf } from "../util/format";
 
 /** How a handler responds to Ctrl+zoom: not at all, by scaling the font (text),
  *  or by scaling pixels (images/sprites). The Viewer host owns the zoom state +
  *  input; the View just applies the factor. */
 export type ZoomMode = "none" | "font" | "scale";
-
-/** A single inspector row a handler contributes for the selected node. */
-export interface Detail {
-  label: string;
-  value: string;
-}
 
 /** Props passed to a full-pane viewer. `onSelect` lets a view navigate the
  *  selection (used by the folder grid to drill into children). `zoom` is the

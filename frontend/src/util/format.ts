@@ -1,4 +1,5 @@
 /** Shared formatting helpers (single source of truth). */
+import type { Detail, WavInfo } from "../types";
 
 /** File extension (without the dot), lowercased; "" if none. */
 export function extOf(path: string): string {
@@ -16,4 +17,14 @@ export function fmtSize(n: number): string {
 /** Pixel dimensions as `W×H` (single source for the ×-glyph form). */
 export function fmtDim(w: number, h: number): string {
   return `${w}×${h}`;
+}
+
+/** WAV header → inspector/detail rows (single source of the field labels). */
+export function wavDetails(i: WavInfo): Detail[] {
+  return [
+    { label: "sample rate", value: `${i.sample_rate} Hz` },
+    { label: "channels", value: String(i.channels) },
+    { label: "bits", value: String(i.bits_per_sample) },
+    { label: "duration", value: `${i.duration_secs.toFixed(2)} s` },
+  ];
 }

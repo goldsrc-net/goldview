@@ -22,6 +22,16 @@ const DEFAULT_DISPLAY: DisplayOpts = {
   ground: false,
 };
 
+/** The toggle buttons (key → toolbar label), the single source the top-bar
+ *  display chips render from. */
+export const DISPLAY_TOGGLES: { key: keyof DisplayOpts; label: string }[] = [
+  { key: "bones", label: "bones" },
+  { key: "attachments", label: "attach" },
+  { key: "hitboxes", label: "hitbox" },
+  { key: "bbox", label: "bbox" },
+  { key: "ground", label: "ground" },
+];
+
 /**
  * Owns the Three.js scene + all model viewer state for one open model, so the
  * center viewport (ModelViewer) and the sidebar controls (ModelPanel) share it.

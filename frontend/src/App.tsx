@@ -1,10 +1,11 @@
-import { For, createMemo, createResource, createSignal, onMount, Show } from "solid-js";
+import { createMemo, createResource, createSignal, onMount, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { createStore } from "solid-js/store";
-import type { Node, OpenResult } from "./types";
+import type { Detail, Node, OpenResult } from "./types";
 import { pickAndOpenMod, startupMod } from "./api";
 import { TreeRow } from "./tree/Tree";
 import Viewer from "./viewers/Viewer";
+import KV from "./viewers/KV";
 import { registry } from "./handlers/registry";
 import { fmtSize } from "./util/format";
 
@@ -26,6 +27,21 @@ export default function App() {
       return h.details ? await h.details(n).catch(() => []) : [];
     },
   );
+
+  // full inspector row set: fixed node fields + the handler's async details()
+  const inspectorRows = createMemo<Detail[]>(() => {
+    const n = selected();
+    if (!n) return [];
+    const rows: Detail[] = [
+      { label: "name", value: n.name },
+      { label: "path", value: n.path },
+      { label: "type", value: n.category ?? "—" },
+    ];
+    if (n.size != null) rows.push({ label: "size", value: fmtSize(n.size) });
+    if (n.source != null && mod()) rows.push({ label: "source", value: mod()!.names[n.source] ?? String(n.source) });
+    rows.push(...(details() ?? []));
+    return rows;
+  });
 
   function applyOpen(res: OpenResult) {
     setMod(res);
@@ -108,34 +124,7 @@ export default function App() {
         <div class="pane inspector">
           <h3>Inspector</h3>
           <Show when={selected()} fallback={<div style={{ color: "var(--fg-dim)" }}>No selection.</div>}>
-            {(n) => (
-              <div class="kv">
-                <span class="k">name</span>
-                <span class="v">{n().name}</span>
-                <span class="k">path</span>
-                <span class="v">{n().path}</span>
-                <span class="k">type</span>
-                <span class="v">{n().category ?? "—"}</span>
-                <Show when={n().size != null}>
-                  <span class="k">size</span>
-                  <span class="v">{fmtSize(n().size!)}</span>
-                </Show>
-                <Show when={n().source != null && mod()}>
-                  <span class="k">source</span>
-                  <span class="v">{mod()!.names[n().source!] ?? n().source}</span>
-                </Show>
-                <Show when={details()}>
-                  <For each={details()}>
-                    {(d) => (
-                      <>
-                        <span class="k">{d.label}</span>
-                        <span class="v">{d.value}</span>
-                      </>
-                    )}
-                  </For>
-                </Show>
-              </div>
-            )}
+            <KV rows={inspectorRows()} />
           </Show>
           <Show when={selected()}>
             {(n) => {

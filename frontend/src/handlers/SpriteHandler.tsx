@@ -1,6 +1,6 @@
 import type { Component } from "solid-js";
-import type { Category, Node } from "../types";
-import { Detail, ResourceHandler, TileProps, ViewProps } from "./Handler";
+import type { Category, Detail, Node } from "../types";
+import { ResourceHandler, TileProps, ViewProps } from "./Handler";
 import { loadSprite } from "../api";
 import { fmtDim } from "../util/format";
 import { SpriteThumb } from "./lazy";
