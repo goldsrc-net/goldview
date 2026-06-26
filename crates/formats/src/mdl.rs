@@ -66,10 +66,14 @@ struct SeqRaw {
 
 struct TextureT {
     name: String,
+    flags: i32, // mstudiotexture_t.flags (chrome/additive/masked/…)
     width: u32,
     height: u32,
     rgba: Vec<u8>, // decoded
 }
+
+// mstudiotexture_t.flags bit used at decode time (others are applied frontend-side)
+const NF_MASKED: i32 = 0x0040;
 
 /// Full parsed model (the pieces the viewer needs).
 pub struct Model {
@@ -89,6 +93,8 @@ pub struct Model {
 #[derive(serde::Serialize)]
 pub struct ModelTexture {
     pub name: String,
+    /// mstudiotexture_t.flags (chrome 0x02, additive 0x20, masked 0x40, …)
+    pub flags: i32,
     pub width: u32,
     pub height: u32,
 }
@@ -206,11 +212,12 @@ impl Model {
         for i in 0..num_textures {
             let o = texture_index + i * 80;
             let tname = cstr_at(&bytes, o, 64);
+            let flags = i32_at(&bytes, o + 64);
             let width = i32_at(&bytes, o + 68).max(0) as u32;
             let height = i32_at(&bytes, o + 72).max(0) as u32;
             let data_off = i32_at(&bytes, o + 76) as usize;
-            let rgba = decode_texture(&bytes, data_off, width, height);
-            textures.push(TextureT { name: tname, width, height, rgba });
+            let rgba = decode_texture(&bytes, data_off, width, height, flags & NF_MASKED != 0);
+            textures.push(TextureT { name: tname, flags, width, height, rgba });
         }
 
         // skin families: num_skin_families * num_skin_ref shorts
@@ -411,7 +418,7 @@ impl Model {
             textures: self
                 .textures
                 .iter()
-                .map(|t| ModelTexture { name: t.name.clone(), width: t.width, height: t.height })
+                .map(|t| ModelTexture { name: t.name.clone(), flags: t.flags, width: t.width, height: t.height })
                 .collect(),
             num_skin_families: self.skins.len().max(1),
             sequences: self
@@ -567,8 +574,10 @@ impl Model {
     }
 }
 
-/// MDL texture: w*h palette indices then 256*3 RGB palette, at `off`. Opaque.
-fn decode_texture(b: &[u8], off: usize, w: u32, h: u32) -> Vec<u8> {
+/// MDL texture: w*h palette indices then 256*3 RGB palette, at `off`. `masked`
+/// (STUDIO_NF_MASKED) makes palette index 255 transparent (alpha-test).
+fn decode_texture(b: &[u8], off: usize, w: u32, h: u32, masked: bool) -> Vec<u8> {
+    use crate::palette::{palettize, PaletteMode};
     let n = (w as usize) * (h as usize);
     let pal_off = off + n;
     if pal_off + 768 > b.len() || off + n > b.len() {
@@ -576,7 +585,8 @@ fn decode_texture(b: &[u8], off: usize, w: u32, h: u32) -> Vec<u8> {
     }
     let indices = &b[off..off + n];
     let pal = &b[pal_off..pal_off + 768];
-    crate::palette::palettize(indices, pal, w, h, crate::palette::PaletteMode::Opaque).pixels
+    let mode = if masked { PaletteMode::ColorKey } else { PaletteMode::Opaque };
+    palettize(indices, pal, w, h, mode).pixels
 }
 
 /// Decode one animation channel (0-2 pos, 3-5 rot) for a bone at `frame`.

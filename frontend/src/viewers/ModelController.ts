@@ -6,6 +6,11 @@ import { OrbitControls } from "../three/OrbitControls";
 
 export type ViewMode = "model" | "textures";
 
+// mstudiotexture_t.flags applied at render time
+const NF_CHROME = 0x02;
+const NF_ADDITIVE = 0x20;
+const NF_MASKED = 0x40;
+
 /** HLMV-style display toggles. */
 export interface DisplayOpts {
   bones: boolean;
@@ -80,7 +85,7 @@ export class ModelController {
   private action?: THREE.AnimationAction;
   private skeleton?: THREE.Skeleton;
   private geoms: THREE.BufferGeometry[] = [];
-  private mats: THREE.MeshLambertMaterial[] = [];
+  private mats: Array<THREE.MeshLambertMaterial | THREE.MeshPhongMaterial> = [];
   private texMap = new Map<number, THREE.Texture>();
   // display helpers (created on first toggle)
   private boneHelper?: THREE.SkeletonHelper;
@@ -200,6 +205,39 @@ export class ModelController {
     this.radius = (maxDim / (2 * Math.tan((this.camera.fov * Math.PI) / 360))) * 1.4;
   }
 
+  /** Build a submesh material honouring its texture flags: chrome → env-mapped
+   *  reflection (the shine), additive → additive blend, masked → alpha-test. */
+  private makeMaterial(texIdx: number, flags: number): THREE.MeshLambertMaterial | THREE.MeshPhongMaterial {
+    const tex = this.texMap.get(texIdx) ?? null;
+    const wireframe = this.wireframe();
+    if (tex && flags & NF_CHROME) {
+      return new THREE.MeshPhongMaterial({
+        envMap: tex,
+        combine: THREE.MixOperation,
+        reflectivity: 1,
+        color: 0xffffff,
+        specular: 0x333333,
+        side: THREE.DoubleSide,
+        wireframe,
+      });
+    }
+    const mat = new THREE.MeshLambertMaterial({
+      map: tex,
+      color: tex ? 0xffffff : 0x9aa0a8,
+      side: THREE.DoubleSide,
+      wireframe,
+    });
+    if (flags & NF_ADDITIVE) {
+      mat.blending = THREE.AdditiveBlending;
+      mat.transparent = true;
+      mat.depthWrite = false;
+    } else if (flags & NF_MASKED) {
+      mat.transparent = true;
+      mat.alphaTest = 0.5;
+    }
+    return mat;
+  }
+
   private async buildMesh(model: ModelData) {
     // textures
     const used = new Set<number>();
@@ -211,6 +249,8 @@ export class ModelController {
           const tex = new THREE.DataTexture(new Uint8Array(rgba.pixels), rgba.width, rgba.height, THREE.RGBAFormat);
           tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
           tex.minFilter = tex.magFilter = THREE.LinearFilter;
+          // chrome textures are used as a reflection env map, not UV-mapped
+          if ((model.textures[idx]?.flags ?? 0) & NF_CHROME) tex.mapping = THREE.EquirectangularReflectionMapping;
           tex.needsUpdate = true;
           this.texMap.set(idx, tex);
         } catch {
@@ -249,12 +289,7 @@ export class ModelController {
         geo.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(si, 4));
         geo.setAttribute("skinWeight", new THREE.Float32BufferAttribute(sw, 4));
         geo.computeVertexNormals(); // smooth normals (flat toggle uses face normals)
-        const mat = new THREE.MeshLambertMaterial({
-          map: this.texMap.get(sm.texture) ?? null,
-          color: this.texMap.has(sm.texture) ? 0xffffff : 0x9aa0a8,
-          side: THREE.DoubleSide,
-          wireframe: this.wireframe(),
-        });
+        const mat = this.makeMaterial(sm.texture, model.textures[sm.texture]?.flags ?? 0);
         const mesh = new THREE.SkinnedMesh(geo, mat);
         this.group.add(mesh);
         // bones already live under `group`; bind without re-parenting them

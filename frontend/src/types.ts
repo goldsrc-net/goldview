@@ -57,6 +57,8 @@ export interface SpriteData {
 
 export interface ModelTexture {
   name: string;
+  /** mstudiotexture_t.flags: chrome 0x02, additive 0x20, masked 0x40 */
+  flags: number;
   width: number;
   height: number;
 }
