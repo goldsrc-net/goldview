@@ -70,6 +70,10 @@ export function loadBsp(path: string): Promise<BspData> {
   return invoke<BspData>("load_bsp", { path });
 }
 
+export function bspTexture(path: string, index: number): Promise<Rgba> {
+  return invoke<Rgba>("bsp_texture", { path, index });
+}
+
 export function audioInfo(path: string): Promise<WavInfo> {
   return invoke<WavInfo>("audio_info", { path });
 }

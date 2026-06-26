@@ -5,6 +5,7 @@
 mod commands;
 mod protocol;
 
+use gv_formats::Rgba;
 use gv_vfs::Mod;
 use std::sync::Mutex;
 
@@ -12,6 +13,9 @@ use std::sync::Mutex;
 #[derive(Default)]
 pub struct AppState {
     pub current: Mutex<Option<Mod>>,
+    /// resolved textures for the last-loaded BSP (path, per-index RGBA); avoids
+    /// re-loading the (large) WAD files on every `bsp_texture` call.
+    pub bsp_textures: Mutex<Option<(String, Vec<Option<Rgba>>)>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -38,6 +42,7 @@ pub fn run() {
             commands::audio_info,
             commands::reveal_path,
             commands::load_bsp,
+            commands::bsp_texture,
         ])
         .run(tauri::generate_context!())
         .expect("error while running goldview");

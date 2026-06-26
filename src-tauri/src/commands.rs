@@ -207,12 +207,61 @@ pub fn reveal_path(state: State<AppState>, path: String) -> CmdResult<()> {
     Ok(())
 }
 
-/// Parse a BSP map → render-ready surfaces, textures, and entities.
+/// Parse a BSP map → render-ready surfaces, textures, and entities. Resolves
+/// each texture (embedded miptex, or external from the worldspawn `wad` list)
+/// and caches the decoded RGBA for `bsp_texture`.
 #[tauri::command]
 pub fn load_bsp(state: State<AppState>, path: String) -> CmdResult<BspData> {
     let bytes = read_bytes(&state, &path)?;
     let bsp = Bsp::parse(bytes).map_err(err)?;
-    Ok(bsp.build())
+    let data = bsp.build();
+    let textures = resolve_bsp_textures(&state, &bsp, &data);
+    *state.bsp_textures.lock().unwrap() = Some((path, textures));
+    Ok(data)
+}
+
+/// Resolve every BSP texture to RGBA: embedded miptex directly, external ones by
+/// name from the WADs named in the worldspawn `wad` key (case-insensitive vfs
+/// resolve handles path/case differences). `None` = unresolved (missing WAD).
+fn resolve_bsp_textures(state: &State<AppState>, bsp: &Bsp, data: &BspData) -> Vec<Option<Rgba>> {
+    let wad_key = data
+        .entities
+        .iter()
+        .find(|e| e.keys.get("classname").map(|c| c == "worldspawn").unwrap_or(false))
+        .and_then(|e| e.keys.get("wad"))
+        .cloned()
+        .unwrap_or_default();
+    let wads: Vec<Wad> = wad_key
+        .split(';')
+        .filter(|s| !s.is_empty())
+        .filter_map(|p| {
+            let base = p.rsplit(['\\', '/']).next().unwrap_or(p); // strip the (windows) path
+            read_bytes(state, base).ok().and_then(|b| Wad::parse(b).ok())
+        })
+        .collect();
+    data.textures
+        .iter()
+        .enumerate()
+        .map(|(i, t)| {
+            if t.embedded {
+                bsp.texture_rgba(i)
+            } else {
+                wads.iter().find_map(|w| w.decode(&t.name).ok())
+            }
+        })
+        .collect()
+}
+
+/// A decoded BSP texture by index (from the `load_bsp` cache).
+#[tauri::command]
+pub fn bsp_texture(state: State<AppState>, path: String, index: usize) -> CmdResult<Rgba> {
+    let guard = state.bsp_textures.lock().unwrap();
+    match guard.as_ref() {
+        Some((p, texs)) if *p == path => {
+            texs.get(index).cloned().flatten().ok_or_else(|| format!("no bsp texture {index}"))
+        }
+        _ => Err("bsp not loaded".into()),
+    }
 }
 
 /// WAV header info for the audio inspector.
