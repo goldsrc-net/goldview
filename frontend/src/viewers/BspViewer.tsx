@@ -111,6 +111,7 @@ export default function BspViewer(props: { path: string }) {
     lightmap.needsUpdate = true;
 
     // textures actually used by surfaces (deduped)
+    const maxAniso = renderer?.capabilities.getMaxAnisotropy() ?? 1;
     const used = new Set(data.surfaces.map((s) => s.texture));
     await Promise.all(
       [...used].map(async (idx) => {
@@ -120,6 +121,7 @@ export default function BspViewer(props: { path: string }) {
           t.wrapS = t.wrapT = THREE.RepeatWrapping;
           t.minFilter = THREE.LinearMipmapLinearFilter;
           t.magFilter = THREE.LinearFilter;
+          t.anisotropy = maxAniso; // kill grazing-angle streaking on tiled floors/walls
           t.generateMipmaps = true;
           t.needsUpdate = true;
           texMap.set(idx, t);

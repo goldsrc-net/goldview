@@ -54,8 +54,8 @@ struct FaceT {
     first_edge: usize,
     num_edges: usize,
     texinfo: usize,
-    style0: u8,    // first lightstyle; only style 0 (LS_NORMAL) is statically baked
-    lightofs: i32, // byte offset into LIGHTING (style-0 luxels), or -1 if unlit
+    styles: [u8; 4], // lightstyles; 255 = unused. Only style 0 is statically baked
+    lightofs: i32,   // byte offset into LIGHTING (style-0 luxels), or -1 if unlit
 }
 
 struct MipTexT {
@@ -250,7 +250,12 @@ impl Bsp {
                     first_edge: u32_at(fb, o + 4) as usize,
                     num_edges: u16_at(fb, o + 8) as usize,
                     texinfo: u16_at(fb, o + 10) as usize,
-                    style0: *fb.get(o + 12).unwrap_or(&0), // styles[4] at +12
+                    styles: [
+                        *fb.get(o + 12).unwrap_or(&0),
+                        *fb.get(o + 13).unwrap_or(&255),
+                        *fb.get(o + 14).unwrap_or(&255),
+                        *fb.get(o + 15).unwrap_or(&255),
+                    ],
                     lightofs: i32_at(fb, o + 16),
                 }
             })
@@ -279,11 +284,13 @@ impl Bsp {
     pub fn build(&self) -> BspData {
         // ---- pass 1: per-face polygon + lightmap extents, packed into an atlas
         // atlas (0,0) is a reserved white luxel for unlit faces (→ fullbright).
+        let valid = self.valid_lightmap_faces(); // faces whose dims match the byte layout
         let mut packer = Packer::new();
         let faces: Vec<FaceBuild> = self
             .faces
             .iter()
-            .filter_map(|face| self.face_build(face, &mut packer))
+            .enumerate()
+            .filter_map(|(i, face)| self.face_build(face, valid.contains(&i), &mut packer))
             .collect();
 
         // ---- build the lightmap atlas image from the placements
@@ -349,7 +356,7 @@ impl Bsp {
 
     /// Build a face's polygon + texture refs + lightmap placement (packing into
     /// `packer`). Returns None for degenerate faces.
-    fn face_build(&self, face: &FaceT, packer: &mut Packer) -> Option<FaceBuild> {
+    fn face_build(&self, face: &FaceT, lit_allowed: bool, packer: &mut Packer) -> Option<FaceBuild> {
         let ti = self.texinfos.get(face.texinfo)?;
         let (tw, th) = self
             .textures
@@ -369,29 +376,14 @@ impl Bsp {
         }
         let normal = face_normal(&poly);
 
-        // lightmap extents in luxels
-        let (mut min_s, mut min_t) = (f32::MAX, f32::MAX);
-        let (mut max_s, mut max_t) = (f32::MIN, f32::MIN);
-        for v in &poly {
-            let s = dot(v, &ti.s) + ti.s_off;
-            let t = dot(v, &ti.t) + ti.t_off;
-            min_s = min_s.min(s);
-            max_s = max_s.max(s);
-            min_t = min_t.min(t);
-            max_t = max_t.max(t);
-        }
-        let lm_w = ((max_s / LUXEL).ceil() - (min_s / LUXEL).floor() + 1.0) as i64;
-        let lm_h = ((max_t / LUXEL).ceil() - (min_t / LUXEL).floor() + 1.0) as i64;
-        // only style-0 (statically baked) faces with a valid offset get a lightmap
-        let lm = if face.style0 == 0 && face.lightofs >= 0 && (1..=64).contains(&lm_w) && (1..=64).contains(&lm_h) {
+        let (min_s, min_t, max_s, max_t) = face_tex_bounds(&poly, ti);
+        let (lm_w, lm_h) = lightmap_dims(min_s, max_s, min_t, max_t);
+        // `lit_allowed` was pre-validated against the LIGHTING byte layout, so the
+        // w*h*3 read is guaranteed to land on this face's data (no mis-stride).
+        let lm = if lit_allowed {
             let (w, h) = (lm_w as usize, lm_h as usize);
-            let off = face.lightofs as usize;
-            if off + w * h * 3 <= self.lighting.len() {
-                let (x, y) = packer.place(w, h);
-                Some(LightMap { x, y, w, h, off, mid_poly_u: (min_s + max_s) / 2.0, mid_poly_v: (min_t + max_t) / 2.0 })
-            } else {
-                None
-            }
+            let (x, y) = packer.place(w, h);
+            Some(LightMap { x, y, w, h, off: face.lightofs as usize, mid_poly_u: (min_s + max_s) / 2.0, mid_poly_v: (min_t + max_t) / 2.0 })
         } else {
             None
         };
@@ -416,6 +408,51 @@ impl Bsp {
                 }
             }
         }
+    }
+
+    /// Faces whose computed lightmap size exactly fits the LIGHTING byte layout.
+    /// The lump is packed contiguously, so a face is only safely lightmappable if
+    /// `lightofs + numstyles*w*h*3` equals the next face's offset (or the lump
+    /// end). This rejects the rare face whose float-boundary extent is off by one
+    /// (which would mis-stride its data → striping) — those render fullbright.
+    fn valid_lightmap_faces(&self) -> std::collections::HashSet<usize> {
+        // candidate lit faces: (face index, lightofs, total bytes)
+        let mut cands: Vec<(usize, i64, i64)> = Vec::new();
+        for (i, face) in self.faces.iter().enumerate() {
+            if face.styles[0] != 0 || face.lightofs < 0 {
+                continue;
+            }
+            let ti = match self.texinfos.get(face.texinfo) {
+                Some(t) => t,
+                None => continue,
+            };
+            let mut poly = Vec::with_capacity(face.num_edges);
+            for k in 0..face.num_edges {
+                let se = *self.surfedges.get(face.first_edge + k).unwrap_or(&0);
+                let (a, b) = *self.edges.get(se.unsigned_abs() as usize).unwrap_or(&(0, 0));
+                poly.push(*self.vertices.get(if se >= 0 { a } else { b } as usize).unwrap_or(&[0.0; 3]));
+            }
+            if poly.len() < 3 {
+                continue;
+            }
+            let (min_s, min_t, max_s, max_t) = face_tex_bounds(&poly, ti);
+            let (w, h) = lightmap_dims(min_s, max_s, min_t, max_t);
+            if !(1..=64).contains(&w) || !(1..=64).contains(&h) {
+                continue;
+            }
+            let nstyles = face.styles.iter().filter(|&&s| s != 255).count().max(1) as i64;
+            cands.push((i, face.lightofs as i64, nstyles * w * h * 3));
+        }
+        cands.sort_by_key(|c| c.1);
+        let len = self.lighting.len() as i64;
+        let mut valid = std::collections::HashSet::new();
+        for (k, &(idx, ofs, bytes)) in cands.iter().enumerate() {
+            let next = cands.get(k + 1).map(|c| c.1).unwrap_or(len);
+            if ofs + bytes == next || (k + 1 == cands.len() && ofs + bytes <= len) {
+                valid.insert(idx);
+            }
+        }
+        valid
     }
 
     /// A decoded embedded texture by index (for the frontend atlas).
@@ -495,6 +532,27 @@ fn parse_entities(s: &str) -> Vec<Entity> {
 
 fn dot(a: &[f32; 3], b: &[f32; 3]) -> f32 {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+/// Min/max of a face's texture-space coords (s,t) over its polygon vertices.
+fn face_tex_bounds(poly: &[[f32; 3]], ti: &TexInfo) -> (f32, f32, f32, f32) {
+    let (mut min_s, mut min_t, mut max_s, mut max_t) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
+    for v in poly {
+        let s = dot(v, &ti.s) + ti.s_off;
+        let t = dot(v, &ti.t) + ti.t_off;
+        min_s = min_s.min(s);
+        max_s = max_s.max(s);
+        min_t = min_t.min(t);
+        max_t = max_t.max(t);
+    }
+    (min_s, min_t, max_s, max_t)
+}
+
+/// Lightmap luxel dimensions (w, h) from texture-space bounds (engine formula).
+fn lightmap_dims(min_s: f32, max_s: f32, min_t: f32, max_t: f32) -> (i64, i64) {
+    let w = ((max_s / LUXEL).ceil() - (min_s / LUXEL).floor() + 1.0) as i64;
+    let h = ((max_t / LUXEL).ceil() - (min_t / LUXEL).floor() + 1.0) as i64;
+    (w, h)
 }
 
 fn face_normal(poly: &[[f32; 3]]) -> [f32; 3] {
