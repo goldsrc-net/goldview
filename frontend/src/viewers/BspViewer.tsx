@@ -100,7 +100,7 @@ export default function BspViewer(props: { path: string }) {
 
   const geoms: THREE.BufferGeometry[] = [];
   const texMap = new Map<number, THREE.Texture>();
-  const flatMat = new THREE.MeshNormalMaterial({ flatShading: true });
+  const flatMat = new THREE.MeshNormalMaterial({ flatShading: true, side: THREE.BackSide }); // match world winding (outward face = BackSide)
   let surfaceMeshes: THREE.Mesh[] = []; // world surfaces (not entityGroup)
   let texturedMats: THREE.MeshBasicMaterial[] = []; // parallel to surfaceMeshes
   let animated: { mat: THREE.MeshBasicMaterial; frames: THREE.Texture[] }[] = []; // +0/+1… cycling
@@ -243,7 +243,12 @@ export default function BspViewer(props: { path: string }) {
         ? new THREE.MeshBasicMaterial({ color: 0x8fb3d9, side: THREE.DoubleSide })
         : new THREE.MeshBasicMaterial({
             map: texMap.get(s.texture) ?? missing,
-            side: THREE.DoubleSide,
+            // opaque world faces only exist on the outward (empty) side, so cull
+            // the hidden side (perf). BSP winding makes the outward face Three's
+            // BackSide (the reference renderer culls GL_FRONT / CULL_FRONT with
+            // CCW-front). Masked/transparent brushes (fences, grates, water, glass)
+            // are genuinely two-sided.
+            side: style.transparent ? THREE.DoubleSide : THREE.BackSide,
             lightMapIntensity: LIGHTMAP_INTENSITY,
             transparent: style.transparent,
             opacity: style.opacity,
