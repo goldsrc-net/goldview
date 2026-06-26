@@ -10,21 +10,23 @@ use anyhow::{anyhow, Result};
 
 const MAX_CONTROLLERS: usize = 6;
 
-// ---------- low-level readers (little-endian) ----------
+// ---------- low-level readers (little-endian, bounds-safe) ----------
+// Offsets come from the file, so a malformed model can produce out-of-range
+// reads; these saturate to 0/empty rather than panic (parsers never crash).
 fn i32_at(b: &[u8], o: usize) -> i32 {
-    i32::from_le_bytes([b[o], b[o + 1], b[o + 2], b[o + 3]])
+    b.get(o..o + 4).map(|s| i32::from_le_bytes([s[0], s[1], s[2], s[3]])).unwrap_or(0)
 }
 fn f32_at(b: &[u8], o: usize) -> f32 {
-    f32::from_le_bytes([b[o], b[o + 1], b[o + 2], b[o + 3]])
+    b.get(o..o + 4).map(|s| f32::from_le_bytes([s[0], s[1], s[2], s[3]])).unwrap_or(0.0)
 }
 fn i16_at(b: &[u8], o: usize) -> i16 {
-    i16::from_le_bytes([b[o], b[o + 1]])
+    b.get(o..o + 2).map(|s| i16::from_le_bytes([s[0], s[1]])).unwrap_or(0)
 }
 fn vec3_at(b: &[u8], o: usize) -> [f32; 3] {
     [f32_at(b, o), f32_at(b, o + 4), f32_at(b, o + 8)]
 }
 fn cstr_at(b: &[u8], o: usize, n: usize) -> String {
-    let s = &b[o..(o + n).min(b.len())];
+    let s = b.get(o..(o + n).min(b.len())).unwrap_or(&[]);
     let end = s.iter().position(|&c| c == 0).unwrap_or(s.len());
     String::from_utf8_lossy(&s[..end]).into_owned()
 }
@@ -338,10 +340,11 @@ impl Model {
             local[12] = b.value[0];
             local[13] = b.value[1];
             local[14] = b.value[2];
-            let world = if b.parent < 0 {
-                local
-            } else {
-                mat4_mul(&out[b.parent as usize], &local)
+            // parent index comes from the file; a malformed model (e.g. doctor.mdl)
+            // can have a garbage/forward parent — fall back to local, never panic.
+            let world = match usize::try_from(b.parent).ok().and_then(|p| out.get(p)) {
+                Some(parent) => mat4_mul(parent, &local),
+                None => local,
             };
             out.push(world);
         }

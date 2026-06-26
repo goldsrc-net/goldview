@@ -52,6 +52,19 @@ fn parse_and_build_real_model() {
     }
 }
 
+/// A malformed model (doctor.mdl has garbage bone parent indices) must not panic.
+#[test]
+fn malformed_model_does_not_panic() {
+    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../xash3d-fwgs/dist/client-x64/valve/models/doctor.mdl");
+    if !p.exists() {
+        eprintln!("skip: doctor.mdl not present");
+        return;
+    }
+    let model = Model::parse(std::fs::read(&p).unwrap()).expect("parse doctor.mdl");
+    let _ = model.build(0, &[]); // must return, not panic
+}
+
 /// Body-part submodel selection must actually change the built geometry.
 /// gordon's `body` part has 2 submodels (low/high-res head) with different
 /// vertex counts, so build([0]) and build([1]) must differ.
