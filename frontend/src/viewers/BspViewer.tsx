@@ -108,6 +108,7 @@ export default function BspViewer(props: { path: string }) {
     lightmap = new THREE.DataTexture(new Uint8Array(lm.pixels), lm.width, lm.height, THREE.RGBAFormat);
     lightmap.wrapS = lightmap.wrapT = THREE.ClampToEdgeWrapping;
     lightmap.minFilter = lightmap.magFilter = THREE.LinearFilter;
+    lightmap.channel = 1; // sample via the geometry's uv1 (lightmap) attribute
     lightmap.needsUpdate = true;
 
     // textures actually used by surfaces (deduped)
