@@ -88,17 +88,16 @@ impl Mod {
         let mut roots = vec![dir.clone()];
         let mut names = vec![dir.file_name().unwrap_or_default().to_string_lossy().into_owned()];
 
-        if let Some(fallback) = read_fallback_dir(&dir) {
-            // fallback is a sibling game dir, e.g. ts/.. /valve
-            if let Some(parent) = dir.parent() {
-                let fb = parent.join(&fallback);
-                if let Ok(fb) = fb.canonicalize() {
-                    if fb.is_dir() && fb != dir {
-                        roots.push(fb);
-                        names.push(fallback);
-                    }
-                }
+        // fallback chain is resolved against the parent game directory (siblings)
+        if let Some(parent) = dir.parent() {
+            // 1) the mod's declared `fallback_dir` (liblist.gam), if any
+            if let Some(fallback) = read_fallback_dir(&dir) {
+                push_root(&mut roots, &mut names, parent.join(&fallback), fallback);
             }
+            // 2) always include the base game `valve` — the GoldSrc engine always
+            //    falls back to it, so its shared resources (halflife.wad, base
+            //    models, …) are available to every mod even when undeclared.
+            push_root(&mut roots, &mut names, parent.join("valve"), "valve".into());
         }
 
         Ok(Mod { roots, names })
@@ -178,6 +177,17 @@ fn read_fallback_dir(dir: &Path) -> Option<String> {
 }
 
 /// Normalize a relative path: forward slashes, no `..`, no absolute, no `.`.
+/// Append a fallback game root (canonicalised) if it's a real dir and not already
+/// in the chain — preserves order and de-dups (e.g. when `fallback_dir` is valve).
+fn push_root(roots: &mut Vec<PathBuf>, names: &mut Vec<String>, path: PathBuf, name: String) {
+    if let Ok(c) = path.canonicalize() {
+        if c.is_dir() && !roots.contains(&c) {
+            roots.push(c);
+            names.push(name);
+        }
+    }
+}
+
 /// Walk `rel` under `root` matching each component case-insensitively. Used as a
 /// fallback when an exact-case path doesn't exist. Stays within `root` (walks
 /// real directory entries), so it inherits the same traversal guard as `resolve`.
