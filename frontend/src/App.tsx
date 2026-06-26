@@ -1,9 +1,9 @@
-import { createMemo, createResource, createSignal, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createResource, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { createStore } from "solid-js/store";
 import type { Detail, Node, OpenResult } from "./types";
 import { pickAndOpenMod, startupMod } from "./api";
-import { TreeRow } from "./tree/Tree";
+import { TreeRow, matches, nodeOpen } from "./tree/Tree";
 import Viewer from "./viewers/Viewer";
 import KV from "./viewers/KV";
 import { registry } from "./handlers/registry";
@@ -46,12 +46,80 @@ export default function App() {
   function applyOpen(res: OpenResult) {
     setMod(res);
     const root = res.tree;
-    // expand the mod root (path "") plus its top-level dirs, and show its grid
-    const init: Record<string, boolean> = { [root.path]: true };
-    for (const c of root.children ?? []) if (c.is_dir) init[c.path] = true;
-    setOpen(init);
+    // expand only the mod root, revealing its top-level dirs (collapsed); show its grid
+    setOpen({ [root.path]: true });
     setSelected(root);
   }
+
+  // The visible rows, flattened in display order (respects open state + filter) —
+  // drives ↑/↓ keyboard navigation. Reuses the tree's own matches/nodeOpen rules.
+  const flatVisible = createMemo<Node[]>(() => {
+    const root = mod()?.tree;
+    if (!root) return [];
+    const open = openSet();
+    const f = filter();
+    const out: Node[] = [];
+    const walk = (n: Node) => {
+      if (!matches(n, f)) return;
+      out.push(n);
+      if (n.is_dir && nodeOpen(n, open, f)) for (const c of n.children ?? []) walk(c);
+    };
+    walk(root);
+    return out;
+  });
+
+  const parentPath = (p: string) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
+
+  // Keyboard nav: ↑/↓ move selection through the visible rows; → expand / step in;
+  // ← collapse / go up a level; Backspace always goes up to the parent folder.
+  function onTreeKey(e: KeyboardEvent) {
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    const list = flatVisible();
+    if (!list.length) return;
+    const cur = selected();
+    const idx = cur ? list.findIndex((n) => n.path === cur.path) : -1;
+    const goParent = () => {
+      const p = list.find((n) => n.path === parentPath(cur!.path));
+      if (p) setSelected(p);
+    };
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setSelected(list[Math.min(idx + 1, list.length - 1)] ?? list[0]);
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setSelected(list[Math.max(idx - 1, 0)] ?? list[0]);
+        break;
+      case "ArrowRight":
+        if (cur?.is_dir) {
+          e.preventDefault();
+          if (!openSet().has(cur.path)) toggle(cur.path);
+          else if (cur.children?.length) setSelected(cur.children[0]);
+        }
+        break;
+      case "ArrowLeft":
+        if (!cur) break;
+        e.preventDefault();
+        if (cur.is_dir && openSet().has(cur.path)) toggle(cur.path);
+        else goParent();
+        break;
+      case "Backspace":
+        if (!cur) break;
+        e.preventDefault();
+        goParent();
+        break;
+    }
+  }
+  onMount(() => window.addEventListener("keydown", onTreeKey));
+  onCleanup(() => window.removeEventListener("keydown", onTreeKey));
+
+  // keep the selected row scrolled into view during keyboard navigation
+  createEffect(() => {
+    selected();
+    requestAnimationFrame(() => document.querySelector(".tree .row.sel")?.scrollIntoView({ block: "nearest" }));
+  });
 
   onMount(async () => {
     try {
