@@ -1,9 +1,9 @@
-import { For, createSignal, createResource, createEffect, onCleanup, Show } from "solid-js";
+import { For, createSignal, createResource, onCleanup, Show } from "solid-js";
 import { loadThumbnail, loadWad, spriteThumbnail, textPreview, wadTexture } from "../api";
 import type { Rgba } from "../types";
-import { paintRgba } from "../util/canvas";
 import { extOf } from "../util/format";
 import Highlighted from "../viewers/Highlighted";
+import RgbaCanvas from "../viewers/RgbaCanvas";
 
 /** Returns a ref-setter + a `visible` signal that flips true once the element
  *  scrolls within ~250px of the viewport — so a folder of 600 images only
@@ -41,17 +41,14 @@ export function LazyCanvas(props: {
 }) {
   const { visible, ref } = useVisible();
   const [img] = createResource(visible, () => props.load());
-  let canvas: HTMLCanvasElement | undefined;
-  createEffect(() => {
-    const d = img();
-    if (d && canvas) paintRgba(canvas, d);
-  });
   return (
     <div class={props.wrap ?? "tile-preview"} ref={ref}>
       <Show when={img()} fallback={<div class="tile-loading" />}>
-        <Show when={!img.error} fallback={<div class="tile-emoji">{props.glyph ?? "⚠️"}</div>}>
-          <canvas class={props.canvasClass ?? "tile-canvas"} ref={canvas} />
-        </Show>
+        {(d) => (
+          <Show when={!img.error} fallback={<div class="tile-emoji">{props.glyph ?? "⚠️"}</div>}>
+            <RgbaCanvas data={d()} class={props.canvasClass ?? "tile-canvas"} />
+          </Show>
+        )}
       </Show>
     </div>
   );

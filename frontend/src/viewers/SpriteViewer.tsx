@@ -1,17 +1,7 @@
 import { For, Show, createEffect, createResource, createSignal, onCleanup } from "solid-js";
 import { loadSprite } from "../api";
-import type { Rgba } from "../types";
-import { paintRgba } from "../util/canvas";
 import { fmtDim } from "../util/format";
-
-/** Paints one decoded RGBA frame to a canvas. */
-function FrameCanvas(props: { frame: Rgba; class?: string; style?: Record<string, string> }) {
-  let canvas: HTMLCanvasElement | undefined;
-  createEffect(() => {
-    if (canvas) paintRgba(canvas, props.frame);
-  });
-  return <canvas class={props.class ?? "img-canvas"} ref={canvas} style={props.style} />;
-}
+import RgbaCanvas from "./RgbaCanvas";
 
 /** Sprite viewer with two modes:
  *   - Play: one frame at a time, play/pause, speed, and a scrub slider that
@@ -73,7 +63,7 @@ export default function SpriteViewer(props: { path: string; zoom?: number }) {
                       {(f, i) => (
                         <div class="cell" title={`frame ${i() + 1}`}>
                           <div class="tile-preview">
-                            <FrameCanvas frame={f} class="tile-canvas" />
+                            <RgbaCanvas data={f} class="tile-canvas" />
                           </div>
                           <div class="cell-label">{i() + 1}</div>
                         </div>
@@ -88,8 +78,8 @@ export default function SpriteViewer(props: { path: string; zoom?: number }) {
                       const f = d().frames[Math.min(frame(), count() - 1)]!;
                       const z = props.zoom ?? 1;
                       return (
-                        <FrameCanvas
-                          frame={f}
+                        <RgbaCanvas
+                          data={f}
                           class="img-canvas zoomed"
                           style={{ width: `${f.width * z}px`, height: `${f.height * z}px` }}
                         />

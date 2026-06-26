@@ -1,9 +1,9 @@
-import { createResource, createEffect, onCleanup, Show } from "solid-js";
+import { createResource, createEffect, Show } from "solid-js";
 import type { Rgba } from "../types";
-import { paintRgba } from "../util/canvas";
 import { fmtDim } from "../util/format";
 import { createZoom, enablePan } from "../util/zoom";
 import ZoomControls from "./ZoomControls";
+import RgbaCanvas from "./RgbaCanvas";
 
 /**
  * The shared image display + controls — used for image *files* and for *textures*
@@ -19,18 +19,39 @@ export default function ImageView(props: {
   onBack?: () => void;
 }) {
   const [img] = createResource(() => props.key, () => props.load());
-  const z = createZoom({ min: 0.1, max: 32 });
   let canvas: HTMLCanvasElement | undefined;
+  let bodyEl: HTMLDivElement | undefined;
+
+  // Ctrl+wheel zoom shared with createZoom; the hook keeps the point under the
+  // cursor fixed (measure before, apply, then adjust scroll after layout).
+  const z = createZoom({
+    min: 0.1,
+    max: 32,
+    onWheelZoom: (e, apply) => {
+      const el = bodyEl;
+      const d = img();
+      if (!el || !d || !canvas) {
+        apply();
+        return;
+      }
+      const rect = el.getBoundingClientRect();
+      const cRect = canvas.getBoundingClientRect();
+      const rx = Math.min(1, Math.max(0, (e.clientX - cRect.left) / cRect.width));
+      const ry = Math.min(1, Math.max(0, (e.clientY - cRect.top) / cRect.height));
+      const mxV = e.clientX - rect.left;
+      const myV = e.clientY - rect.top;
+      apply();
+      requestAnimationFrame(() => {
+        el.scrollLeft = rx * d.width * z.zoom() - mxV;
+        el.scrollTop = ry * d.height * z.zoom() - myV;
+      });
+    },
+  });
 
   // reset zoom whenever the displayed image changes
   createEffect(() => {
     props.key;
     z.reset();
-  });
-
-  createEffect(() => {
-    const d = img();
-    if (d && canvas) paintRgba(canvas, d);
   });
 
   const sized = () => {
@@ -40,31 +61,9 @@ export default function ImageView(props: {
   };
 
   const bindBody = (el: HTMLDivElement) => {
+    bodyEl = el;
     enablePan(el); // click-drag pan (plain scroll/drag)
-    // Ctrl+wheel zoom, anchored on the cursor (keep the point under the mouse fixed)
-    const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey) return;
-      e.preventDefault();
-      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-      const d = img();
-      if (!d || !canvas) {
-        z.zoomBy(factor);
-        return;
-      }
-      const rect = el.getBoundingClientRect();
-      const cRect = canvas.getBoundingClientRect();
-      const rx = Math.min(1, Math.max(0, (e.clientX - cRect.left) / cRect.width));
-      const ry = Math.min(1, Math.max(0, (e.clientY - cRect.top) / cRect.height));
-      const mxV = e.clientX - rect.left;
-      const myV = e.clientY - rect.top;
-      z.zoomBy(factor);
-      requestAnimationFrame(() => {
-        el.scrollLeft = rx * d.width * z.zoom() - mxV;
-        el.scrollTop = ry * d.height * z.zoom() - myV;
-      });
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    onCleanup(() => el.removeEventListener("wheel", onWheel));
+    z.attach(el); // ctrl+wheel zoom (anchored via onWheelZoom above)
   };
 
   return (
@@ -92,7 +91,7 @@ export default function ImageView(props: {
         <Show when={img()} fallback={<div class="placeholder">Decoding…</div>}>
           <Show when={!img.error} fallback={<div class="placeholder">Error: {String(img.error)}</div>}>
             <div class="zoom-wrap">
-              <canvas class="img-canvas zoomed" ref={canvas} style={sized()} />
+              <RgbaCanvas data={img()!} class="img-canvas zoomed" style={sized()} ref={(el) => (canvas = el)} />
             </div>
           </Show>
         </Show>

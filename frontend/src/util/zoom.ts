@@ -1,5 +1,8 @@
 import { createSignal, onCleanup, onMount } from "solid-js";
 
+/** Default multiplicative zoom step per wheel notch / keypress. */
+export const ZOOM_STEP = 1.15;
+
 interface ZoomOpts {
   initial?: number;
   min?: number;
@@ -8,6 +11,10 @@ interface ZoomOpts {
   step?: number;
   /** when present, zoom input is ignored unless this returns true */
   enabled?: () => boolean;
+  /** ctrl+wheel hook: receives the event and an `apply` fn that performs the
+   *  zoom. Lets a consumer measure before and adjust after (e.g. cursor-anchored
+   *  scroll). If omitted, the zoom is applied directly. */
+  onWheelZoom?: (e: WheelEvent, apply: () => void) => void;
 }
 
 /**
@@ -19,7 +26,7 @@ interface ZoomOpts {
 export function createZoom(opts: ZoomOpts = {}) {
   const min = opts.min ?? 0.1;
   const max = opts.max ?? 16;
-  const step = opts.step ?? 1.15;
+  const step = opts.step ?? ZOOM_STEP;
   const [zoom, setZoom] = createSignal(opts.initial ?? 1);
   const clamp = (z: number) => Math.min(max, Math.max(min, z));
   const inn = () => setZoom((z) => clamp(z * step));
@@ -31,7 +38,9 @@ export function createZoom(opts: ZoomOpts = {}) {
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey || !on()) return;
       e.preventDefault();
-      setZoom((z) => clamp(e.deltaY < 0 ? z * step : z / step));
+      const apply = () => setZoom((z) => clamp(e.deltaY < 0 ? z * step : z / step));
+      if (opts.onWheelZoom) opts.onWheelZoom(e, apply);
+      else apply();
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     onCleanup(() => el.removeEventListener("wheel", onWheel));
