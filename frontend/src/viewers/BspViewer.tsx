@@ -1,7 +1,7 @@
 import { createEffect, on, onCleanup, Show, createSignal, For } from "solid-js";
 import * as THREE from "three";
 import { loadBsp, bspTexture, loadModel } from "../api";
-import type { BspData } from "../types";
+import type { BspData, BspEntity } from "../types";
 import { FlyControls } from "../three/FlyControls";
 import { buildStaticModel, disposeStaticModel } from "../three/staticModel";
 import { loadSkybox } from "../three/skybox";
@@ -12,6 +12,40 @@ const VOID_COLOR = new THREE.Color(0x0e0f12);
 type Mode = "flat" | "textured" | "lit";
 
 const LIGHTMAP_INTENSITY = 2; // GoldSrc bakes overbright lighting; compensate
+
+/** How a brush surface blends, from its owning entity's GoldSrc render mode
+ *  (rendermode/renderamt) plus texture-name conventions (`{`=masked, `!`=water). */
+type RenderStyle = {
+  transparent: boolean;
+  opacity: number;
+  alphaTest: number;
+  blending: THREE.Blending;
+  depthWrite: boolean;
+};
+
+const OPAQUE: RenderStyle = { transparent: false, opacity: 1, alphaTest: 0, blending: THREE.NormalBlending, depthWrite: true };
+
+function renderStyle(texName: string, ent: BspEntity | undefined): RenderStyle {
+  const masked = texName.startsWith("{"); // colour-keyed (palette index 255 transparent)
+  const isWater = texName.startsWith("!") || texName.toLowerCase().startsWith("water");
+  let mode = ent ? parseInt(ent.keys.rendermode ?? "", 10) : 0;
+  let amt = ent ? parseInt(ent.keys.renderamt ?? "", 10) : 255;
+  if (!Number.isFinite(mode)) mode = 0;
+  if (!Number.isFinite(amt)) amt = 255;
+  // water brushes are translucent even when the mapper left rendermode at normal
+  if (isWater && (mode === 0 || amt >= 255)) { mode = 2; amt = 150; }
+  switch (mode) {
+    case 5: // additive (TransAdd) — renderamt = brightness
+      return { transparent: true, opacity: amt / 255, alphaTest: 0, blending: THREE.AdditiveBlending, depthWrite: false };
+    case 1: // color (TransColor)
+    case 2: // texture alpha-blend (TransTexture) — renderamt = opacity
+      return { transparent: amt < 255 || masked, opacity: amt / 255, alphaTest: masked ? 0.5 : 0, blending: THREE.NormalBlending, depthWrite: amt >= 255 };
+    case 4: // alpha-test (TransAlpha) — masked, otherwise solid
+      return { transparent: masked, opacity: amt / 255, alphaTest: masked ? 0.5 : 0, blending: THREE.NormalBlending, depthWrite: true };
+    default: // normal: only `{` masking applies
+      return { ...OPAQUE, transparent: masked, alphaTest: masked ? 0.5 : 0 };
+  }
+}
 
 /** Valve-style purple/black checkerboard for unresolved (missing-WAD) textures. */
 function missingTexture(): THREE.DataTexture {
@@ -155,6 +189,13 @@ export default function BspViewer(props: { path: string }) {
       }),
     );
 
+    // brush entities by model index (`model` key `*N`) → render mode / placement
+    const modelEntity = new Map<number, BspEntity>();
+    for (const e of data.entities) {
+      const m = /^\*(\d+)$/.exec(e.keys.model ?? "");
+      if (m) modelEntity.set(parseInt(m[1], 10), e);
+    }
+
     for (const s of data.surfaces) {
       if (s.positions.length === 0) continue;
       const geo = new THREE.BufferGeometry();
@@ -165,16 +206,19 @@ export default function BspViewer(props: { path: string }) {
       const name = data.textures[s.texture]?.name ?? "";
       const isSky = name.toLowerCase() === "sky";
       if (isSky && skybox) continue; // skybox shows through; don't draw the sky brush
-      const masked = name.startsWith("{"); // colour-keyed (index 255 transparent)
+      const style = renderStyle(name, s.model > 0 ? modelEntity.get(s.model) : undefined);
       // sky brushes (no skybox) get a flat sky colour rather than the placeholder miptex
       const mat = isSky
         ? new THREE.MeshBasicMaterial({ color: 0x8fb3d9, side: THREE.DoubleSide })
         : new THREE.MeshBasicMaterial({
             map: texMap.get(s.texture) ?? missing,
             side: THREE.DoubleSide,
-            transparent: masked,
-            alphaTest: masked ? 0.5 : 0,
             lightMapIntensity: LIGHTMAP_INTENSITY,
+            transparent: style.transparent,
+            opacity: style.opacity,
+            alphaTest: style.alphaTest,
+            blending: style.blending,
+            depthWrite: style.depthWrite,
           });
       texturedMats.push(mat);
       const mesh = new THREE.Mesh(geo, mat);

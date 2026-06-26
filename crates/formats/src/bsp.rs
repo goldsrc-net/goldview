@@ -58,6 +58,15 @@ struct FaceT {
     lightofs: i32,   // byte offset into LIGHTING (style-0 luxels), or -1 if unlit
 }
 
+/// A BSP brush model. Model 0 is the worldspawn geometry; models 1.. are brush
+/// entities (func_water/func_wall/doors/…) referenced by an entity's `*N` model
+/// key. Used to tag each surface so the frontend can apply that entity's render
+/// mode (transparency/additive) and runtime placement.
+struct ModelT {
+    first_face: usize,
+    num_faces: usize,
+}
+
 struct MipTexT {
     name: String,
     width: u32,
@@ -81,6 +90,7 @@ struct LightMap {
 struct FaceBuild {
     poly: Vec<[f32; 3]>,
     normal: [f32; 3],
+    model: usize,
     texture: usize,
     tw: f32,
     th: f32,
@@ -164,6 +174,8 @@ pub struct BspTexture {
 pub struct Surface {
     /// index into `BspData::textures`
     pub texture: usize,
+    /// BSP model this surface belongs to (0 = worldspawn; N = brush entity `*N`)
+    pub model: usize,
     pub positions: Vec<f32>, // xyz triples, triangulated
     pub uvs: Vec<f32>,       // base-texture uv pairs
     /// lightmap-atlas uv pairs (maps into `BspData::lightmap`); 0,0 = unlit white
@@ -193,6 +205,7 @@ pub struct Bsp {
     surfedges: Vec<i32>,
     texinfos: Vec<TexInfo>,
     faces: Vec<FaceT>,
+    models: Vec<ModelT>,
     textures: Vec<MipTexT>,
     lighting: Vec<u8>,
     entities_raw: String,
@@ -271,11 +284,17 @@ impl Bsp {
 
         let lighting = slice(LUMP_LIGHTING).to_vec();
 
-        // MODELS lump exists for brush-model face ranges; not needed for the
-        // worldspawn render pass yet (TODO).
-        let _ = LUMP_MODELS;
+        // MODELS: mins[3] maxs[3] origin[3] headnode[4](i32) visleafs(i32)
+        //         firstface(i32) numfaces(i32) = 64 bytes. firstface@56, numfaces@60.
+        let mb = slice(LUMP_MODELS);
+        let models = (0..mb.len() / 64)
+            .map(|i| {
+                let o = i * 64;
+                ModelT { first_face: i32_at(mb, o + 56).max(0) as usize, num_faces: i32_at(mb, o + 60).max(0) as usize }
+            })
+            .collect();
 
-        Ok(Bsp { vertices, edges, surfedges, texinfos, faces, textures, lighting, entities_raw })
+        Ok(Bsp { vertices, edges, surfedges, texinfos, faces, models, textures, lighting, entities_raw })
     }
 
     /// Build render-ready surfaces (grouped by texture) with base UVs + a packed
@@ -285,12 +304,13 @@ impl Bsp {
         // ---- pass 1: per-face polygon + lightmap extents, packed into an atlas
         // atlas (0,0) is a reserved white luxel for unlit faces (→ fullbright).
         let valid = self.valid_lightmap_faces(); // faces whose dims match the byte layout
+        let face_model = self.face_models(); // face index → owning brush model
         let mut packer = Packer::new();
         let faces: Vec<FaceBuild> = self
             .faces
             .iter()
             .enumerate()
-            .filter_map(|(i, face)| self.face_build(face, valid.contains(&i), &mut packer))
+            .filter_map(|(i, face)| self.face_build(face, *face_model.get(i).unwrap_or(&0), valid.contains(&i), &mut packer))
             .collect();
 
         // ---- build the lightmap atlas image from the placements
@@ -303,11 +323,11 @@ impl Bsp {
             }
         }
 
-        // ---- pass 2: emit triangles grouped by texture
+        // ---- pass 2: emit triangles grouped by (model, texture) so each brush
+        // entity is a separable batch (its render mode / placement applies per-model)
         let ntex = self.textures.len().max(1);
-        let mut surfaces: Vec<Surface> = (0..ntex)
-            .map(|t| Surface { texture: t, positions: Vec::new(), uvs: Vec::new(), lightmap_uvs: Vec::new(), normals: Vec::new() })
-            .collect();
+        let mut surfaces: Vec<Surface> = Vec::new();
+        let mut key_to_idx: std::collections::HashMap<(usize, usize), usize> = std::collections::HashMap::new();
         let mut bbmin = [f32::MAX; 3];
         let mut bbmax = [f32::MIN; 3];
         let aw = ATLAS_W as f32;
@@ -320,7 +340,12 @@ impl Bsp {
                     bbmax[c] = bbmax[c].max(v[c]);
                 }
             }
-            let surf = &mut surfaces[fb.texture.min(ntex - 1)];
+            let tex = fb.texture.min(ntex - 1);
+            let idx = *key_to_idx.entry((fb.model, tex)).or_insert_with(|| {
+                surfaces.push(Surface { texture: tex, model: fb.model, positions: Vec::new(), uvs: Vec::new(), lightmap_uvs: Vec::new(), normals: Vec::new() });
+                surfaces.len() - 1
+            });
+            let surf = &mut surfaces[idx];
             let emit = |surf: &mut Surface, v: &[f32; 3]| {
                 surf.positions.extend_from_slice(v);
                 surf.uvs.extend_from_slice(&[(dot(v, &fb.s) + fb.s_off) / fb.tw, (dot(v, &fb.t) + fb.t_off) / fb.th]);
@@ -356,7 +381,7 @@ impl Bsp {
 
     /// Build a face's polygon + texture refs + lightmap placement (packing into
     /// `packer`). Returns None for degenerate faces.
-    fn face_build(&self, face: &FaceT, lit_allowed: bool, packer: &mut Packer) -> Option<FaceBuild> {
+    fn face_build(&self, face: &FaceT, model: usize, lit_allowed: bool, packer: &mut Packer) -> Option<FaceBuild> {
         let ti = self.texinfos.get(face.texinfo)?;
         let (tw, th) = self
             .textures
@@ -388,7 +413,20 @@ impl Bsp {
             None
         };
 
-        Some(FaceBuild { poly, normal, texture: ti.texture, tw, th, s: ti.s, s_off: ti.s_off, t: ti.t, t_off: ti.t_off, lm })
+        Some(FaceBuild { poly, normal, model, texture: ti.texture, tw, th, s: ti.s, s_off: ti.s_off, t: ti.t, t_off: ti.t_off, lm })
+    }
+
+    /// Map each face index → the brush model that owns it (models partition the
+    /// FACES lump by `[first_face, first_face + num_faces)`). Defaults to 0.
+    fn face_models(&self) -> Vec<usize> {
+        let mut fm = vec![0usize; self.faces.len()];
+        for (mi, m) in self.models.iter().enumerate() {
+            let end = (m.first_face + m.num_faces).min(self.faces.len());
+            for f in m.first_face.min(self.faces.len())..end {
+                fm[f] = mi;
+            }
+        }
+        fm
     }
 
     /// Blit one face's style-0 lightmap (RGB luxels) into the RGBA atlas, with

@@ -112,6 +112,8 @@ export interface HitboxOut {
 }
 export interface BspSurface {
   texture: number;
+  /** BSP model owning this surface (0 = worldspawn; N = brush entity `*N`) */
+  model: number;
   positions: number[];
   uvs: number[];
   lightmap_uvs: number[];
