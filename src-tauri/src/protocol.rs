@@ -117,6 +117,10 @@ fn content_type(rel: &str) -> &'static str {
     match ext.as_str() {
         "wav" => "audio/wav",
         "mp3" => "audio/mpeg",
+        "webm" => "video/webm",
+        "mp4" => "video/mp4",
+        "ogv" => "video/ogg",
+        "avi" => "video/x-msvideo",
         "png" => "image/png",
         "bmp" => "image/bmp",
         "tga" => "image/x-tga",

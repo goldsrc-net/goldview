@@ -22,6 +22,7 @@ pub enum Category {
     Wad,
     Image,
     Sound,
+    Video,
     Script,
     Text,
     Other,
@@ -36,6 +37,7 @@ impl Category {
             "wad" => Category::Wad,
             "tga" | "bmp" | "png" | "ico" | "jpg" | "jpeg" => Category::Image,
             "wav" | "mp3" => Category::Sound,
+            "avi" | "webm" | "mp4" | "ogv" => Category::Video,
             "sc" => Category::Script,
             "txt" | "cfg" | "res" | "gam" | "fgd" | "lst" | "wc" | "ini" | "def" | "rc"
             | "mdwn" | "loc" | "nfo" | "inf" | "vdf" | "html" => Category::Text,

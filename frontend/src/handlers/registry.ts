@@ -4,6 +4,7 @@ import { FolderHandler } from "./FolderHandler";
 import { ImageHandler } from "./ImageHandler";
 import { TextHandler } from "./TextHandler";
 import { SoundHandler } from "./SoundHandler";
+import { VideoHandler } from "./VideoHandler";
 import { WadHandler } from "./WadHandler";
 import { SpriteHandler } from "./SpriteHandler";
 import { ModelHandler } from "./ModelHandler";
@@ -17,6 +18,7 @@ export const registry = new HandlerRegistry(new DefaultHandler())
   .register(new ImageHandler())
   .register(new TextHandler())
   .register(new SoundHandler())
+  .register(new VideoHandler())
   .register(new MapHandler())
   .register(new ModelHandler())
   .register(new SpriteHandler())

@@ -5,6 +5,7 @@ export type Category =
   | "wad"
   | "image"
   | "sound"
+  | "video"
   | "script"
   | "text"
   | "other";
