@@ -1,5 +1,6 @@
 import { For, Show, createSignal, type JSX } from "solid-js";
 import type { GalleryItem, Rgba } from "../types";
+import { fmtDim } from "../util/format";
 import ImageView from "./ImageView";
 
 /**
@@ -38,13 +39,11 @@ export default function Gallery(props: {
         <div class="grid">
           <For each={props.items}>
             {(t, i) => (
-              <div class="cell" title={`${t.name}  ${t.width}×${t.height}`} onClick={() => setSel(i())}>
+              <div class="cell" title={`${t.name}  ${fmtDim(t.width, t.height)}`} onClick={() => setSel(i())}>
                 {props.thumb(i())}
                 <div class="cell-label">
                   {t.name}
-                  <div class="dim">
-                    {t.width}×{t.height}
-                  </div>
+                  <div class="dim">{fmtDim(t.width, t.height)}</div>
                 </div>
               </div>
             )}

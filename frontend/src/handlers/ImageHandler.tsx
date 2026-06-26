@@ -2,6 +2,7 @@ import type { Component } from "solid-js";
 import type { Category, Node } from "../types";
 import { Detail, ResourceHandler, TileProps, ViewProps } from "./Handler";
 import { loadImage } from "../api";
+import { fmtDim } from "../util/format";
 import { ImageThumb } from "./lazy";
 import ImageViewer from "../viewers/ImageViewer";
 
@@ -16,6 +17,6 @@ export class ImageHandler extends ResourceHandler {
 
   async details(node: Node): Promise<Detail[]> {
     const r = await loadImage(node.path);
-    return [{ label: "dimensions", value: `${r.width}×${r.height}` }];
+    return [{ label: "dimensions", value: fmtDim(r.width, r.height) }];
   }
 }

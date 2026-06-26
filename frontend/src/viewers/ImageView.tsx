@@ -1,6 +1,7 @@
 import { createResource, createEffect, onCleanup, Show } from "solid-js";
 import type { Rgba } from "../types";
 import { paintRgba } from "../util/canvas";
+import { fmtDim } from "../util/format";
 import { createZoom, enablePan } from "../util/zoom";
 import ZoomControls from "./ZoomControls";
 
@@ -78,7 +79,7 @@ export default function ImageView(props: {
             {(d) => (
               <>
                 {props.title ? " · " : ""}
-                {d().width}×{d().height}
+                {fmtDim(d().width, d().height)}
               </>
             )}
           </Show>

@@ -2,6 +2,7 @@ import { For, Show, createEffect, createResource, createSignal, onCleanup } from
 import { loadSprite } from "../api";
 import type { Rgba } from "../types";
 import { paintRgba } from "../util/canvas";
+import { fmtDim } from "../util/format";
 
 /** Paints one decoded RGBA frame to a canvas. */
 function FrameCanvas(props: { frame: Rgba; class?: string; style?: Record<string, string> }) {
@@ -46,7 +47,7 @@ export default function SpriteViewer(props: { path: string; zoom?: number }) {
         <Show when={data()} fallback={<span class="count">Decoding…</span>}>
           {(d) => (
             <span class="count">
-              {d().num_frames} frames · {d().width}×{d().height} · {d().format_name} · {d().type_name}
+              {d().num_frames} frames · {fmtDim(d().width, d().height)} · {d().format_name} · {d().type_name}
             </span>
           )}
         </Show>
