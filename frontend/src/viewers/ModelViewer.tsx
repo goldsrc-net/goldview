@@ -1,9 +1,9 @@
-import { createEffect, createSignal, on, onCleanup, Show, For } from "solid-js";
+import { createEffect, on, onCleanup, Show } from "solid-js";
 import * as THREE from "three";
 import { ModelController, currentModel, setCurrentModel } from "./ModelController";
 import { LazyCanvas } from "../handlers/lazy";
 import { modelTexture } from "../api";
-import ImageView from "./ImageView";
+import Gallery from "./Gallery";
 
 /** Center pane for a model: a Three.js viewport (skinned + animated) with a
  *  swap-in texture grid. State lives in a shared ModelController (the sidebar
@@ -13,7 +13,6 @@ export default function ModelViewer(props: { path: string }) {
   let canvas: HTMLCanvasElement | undefined;
   let renderer: THREE.WebGLRenderer | undefined;
   let ctrl: ModelController | null = null;
-  const [selTex, setSelTex] = createSignal<{ index: number; name: string } | null>(null);
 
   function teardown() {
     ctrl?.dispose();
@@ -101,37 +100,11 @@ export default function ModelViewer(props: { path: string }) {
       <Show when={showTextures() && currentModel()?.data()}>
         {(model) => (
           <div class="tex-overlay">
-            <Show
-              when={!selTex()}
-              fallback={
-                <ImageView
-                  key={`${props.path}#${selTex()!.index}`}
-                  load={() => modelTexture(props.path, selTex()!.index)}
-                  title={selTex()!.name}
-                  onBack={() => setSelTex(null)}
-                />
-              }
-            >
-              <div class="grid">
-                <For each={model().textures}>
-                  {(t, i) => (
-                    <div
-                      class="cell"
-                      title={`${t.name}  ${t.width}×${t.height}`}
-                      onClick={() => setSelTex({ index: i(), name: t.name })}
-                    >
-                      <LazyCanvas load={() => modelTexture(props.path, i())} />
-                      <div class="cell-label">
-                        {t.name}
-                        <div class="dim">
-                          {t.width}×{t.height}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </For>
-              </div>
-            </Show>
+            <Gallery
+              items={model().textures}
+              thumb={(i) => <LazyCanvas load={() => modelTexture(props.path, i)} />}
+              load={(i) => modelTexture(props.path, i)}
+            />
           </div>
         )}
       </Show>

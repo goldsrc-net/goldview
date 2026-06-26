@@ -53,6 +53,13 @@ export interface ModelTexture {
   width: number;
   height: number;
 }
+/** Minimal shape the shared `Gallery` grid needs from any texture-like item
+ *  (WadTexture, ModelTexture, …): a name + pixel dimensions for the cell label. */
+export interface GalleryItem {
+  name: string;
+  width: number;
+  height: number;
+}
 export interface SubMesh {
   texture: number;
   positions: number[];
