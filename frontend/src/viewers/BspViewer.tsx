@@ -4,7 +4,9 @@ import { loadBsp, bspTexture } from "../api";
 import type { BspData } from "../types";
 import { FlyControls } from "../three/FlyControls";
 
-type Mode = "flat" | "textured";
+type Mode = "flat" | "textured" | "lit";
+
+const LIGHTMAP_INTENSITY = 2; // GoldSrc bakes overbright lighting; compensate
 
 /** Valve-style purple/black checkerboard for unresolved (missing-WAD) textures. */
 function missingTexture(): THREE.DataTexture {
@@ -27,8 +29,8 @@ function missingTexture(): THREE.DataTexture {
 
 /**
  * BSP map viewer. Pointer-lock fly camera; GoldSrc Z-up → Three Y-up; lighting is
- * baked (unlit materials). Modes: Flat (normal-shaded geometry) / Textured (WAD +
- * embedded textures). Baked lightmaps + entity models ("Full") come next.
+ * baked (unlit materials). Modes: Flat (normal-shaded) / Textured (fullbright) /
+ * Lit (texture × baked lightmap). Entity models ("full" scene) come next.
  */
 export default function BspViewer(props: { path: string }) {
   let container: HTMLDivElement | undefined;
@@ -40,7 +42,7 @@ export default function BspViewer(props: { path: string }) {
   const [locked, setLocked] = createSignal(false);
   const [info, setInfo] = createSignal("");
   const [error, setError] = createSignal("");
-  const [mode, setMode] = createSignal<Mode>("textured");
+  const [mode, setMode] = createSignal<Mode>("lit");
   const [wireframe, setWireframe] = createSignal(false);
 
   const scene = new THREE.Scene();
@@ -53,8 +55,8 @@ export default function BspViewer(props: { path: string }) {
   const geoms: THREE.BufferGeometry[] = [];
   const texMap = new Map<number, THREE.Texture>();
   const flatMat = new THREE.MeshNormalMaterial({ flatShading: true });
-  // per-surface textured materials, parallel to group.children
-  let texturedMats: THREE.MeshBasicMaterial[] = [];
+  let texturedMats: THREE.MeshBasicMaterial[] = []; // parallel to group.children
+  let lightmap: THREE.DataTexture | undefined;
   const missing = missingTexture();
 
   function disposeWorld() {
@@ -65,6 +67,8 @@ export default function BspViewer(props: { path: string }) {
     texturedMats = [];
     texMap.forEach((t) => t.dispose());
     texMap.clear();
+    lightmap?.dispose();
+    lightmap = undefined;
   }
 
   function applyMode() {
@@ -72,7 +76,18 @@ export default function BspViewer(props: { path: string }) {
     const wf = wireframe();
     group.children.forEach((c, i) => {
       const mesh = c as THREE.Mesh;
-      mesh.material = m === "flat" ? flatMat : texturedMats[i] ?? flatMat;
+      if (m === "flat") {
+        mesh.material = flatMat;
+      } else {
+        const mat = texturedMats[i];
+        if (!mat) return;
+        const lm = m === "lit" ? lightmap ?? null : null;
+        if (mat.lightMap !== lm) {
+          mat.lightMap = lm;
+          mat.needsUpdate = true; // toggling lightMap changes the shader
+        }
+        mesh.material = mat;
+      }
       const mat = mesh.material as THREE.Material & { wireframe?: boolean };
       if ("wireframe" in mat) mat.wireframe = wf;
     });
@@ -88,7 +103,14 @@ export default function BspViewer(props: { path: string }) {
     if (!data) return;
     disposeWorld();
 
-    // decode the textures actually used by surfaces (deduped)
+    // baked-lightmap atlas
+    const lm = data.lightmap;
+    lightmap = new THREE.DataTexture(new Uint8Array(lm.pixels), lm.width, lm.height, THREE.RGBAFormat);
+    lightmap.wrapS = lightmap.wrapT = THREE.ClampToEdgeWrapping;
+    lightmap.minFilter = lightmap.magFilter = THREE.LinearFilter;
+    lightmap.needsUpdate = true;
+
+    // textures actually used by surfaces (deduped)
     const used = new Set(data.surfaces.map((s) => s.texture));
     await Promise.all(
       [...used].map(async (idx) => {
@@ -102,7 +124,7 @@ export default function BspViewer(props: { path: string }) {
           t.needsUpdate = true;
           texMap.set(idx, t);
         } catch {
-          /* unresolved → checkerboard via fallback below */
+          /* unresolved → checkerboard fallback below */
         }
       }),
     );
@@ -113,6 +135,7 @@ export default function BspViewer(props: { path: string }) {
       geo.setAttribute("position", new THREE.Float32BufferAttribute(s.positions, 3));
       geo.setAttribute("normal", new THREE.Float32BufferAttribute(s.normals, 3));
       geo.setAttribute("uv", new THREE.Float32BufferAttribute(s.uvs, 2));
+      geo.setAttribute("uv1", new THREE.Float32BufferAttribute(s.lightmap_uvs, 2)); // lightMap channel
       const name = data.textures[s.texture]?.name ?? "";
       const masked = name.startsWith("{"); // colour-keyed (index 255 transparent)
       const mat = new THREE.MeshBasicMaterial({
@@ -120,6 +143,7 @@ export default function BspViewer(props: { path: string }) {
         side: THREE.DoubleSide,
         transparent: masked,
         alphaTest: masked ? 0.5 : 0,
+        lightMapIntensity: LIGHTMAP_INTENSITY,
       });
       texturedMats.push(mat);
       group.add(new THREE.Mesh(geo, mat));
@@ -147,7 +171,7 @@ export default function BspViewer(props: { path: string }) {
     });
   }
 
-  createEffect(() => applyMode()); // re-apply when mode / wireframe change
+  createEffect(() => applyMode()); // re-apply on mode / wireframe change
 
   createEffect(
     on(
@@ -194,6 +218,7 @@ export default function BspViewer(props: { path: string }) {
   const MODES: { id: Mode; label: string }[] = [
     { id: "flat", label: "Flat" },
     { id: "textured", label: "Textured" },
+    { id: "lit", label: "Lit" },
   ];
 
   return (

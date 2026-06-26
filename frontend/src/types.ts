@@ -114,6 +114,7 @@ export interface BspSurface {
   texture: number;
   positions: number[];
   uvs: number[];
+  lightmap_uvs: number[];
   normals: number[];
 }
 export interface BspTexture {
@@ -129,6 +130,7 @@ export interface BspData {
   surfaces: BspSurface[];
   textures: BspTexture[];
   entities: BspEntity[];
+  lightmap: Rgba;
   bbox_min: [number, number, number];
   bbox_max: [number, number, number];
 }

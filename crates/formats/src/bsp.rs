@@ -33,9 +33,14 @@ const LUMP_TEXTURES: usize = 2;
 const LUMP_VERTEXES: usize = 3;
 const LUMP_TEXINFO: usize = 6;
 const LUMP_FACES: usize = 7;
+const LUMP_LIGHTING: usize = 8;
 const LUMP_EDGES: usize = 12;
 const LUMP_SURFEDGES: usize = 13;
 const LUMP_MODELS: usize = 14;
+
+const LUXEL: f32 = 16.0; // world units per lightmap sample
+const LM_PAD: usize = 1; // atlas padding to stop bilinear bleed
+const ATLAS_W: usize = 1024;
 
 struct TexInfo {
     s: [f32; 3],
@@ -49,6 +54,7 @@ struct FaceT {
     first_edge: usize,
     num_edges: usize,
     texinfo: usize,
+    lightofs: i32, // byte offset into LIGHTING (style-0 luxels), or -1 if unlit
 }
 
 struct MipTexT {
@@ -56,6 +62,89 @@ struct MipTexT {
     width: u32,
     height: u32,
     rgba: Option<Vec<u8>>, // None = external (lives in a WAD)
+}
+
+/// A face's lightmap placement within the atlas + the world-space luxel origin.
+struct LightMap {
+    x: usize,
+    y: usize,
+    w: usize,
+    h: usize,
+    off: usize, // byte offset of style-0 luxels in the LIGHTING lump
+    bmin_s: f32,
+    bmin_t: f32,
+}
+
+/// Per-face intermediate built in pass 1, consumed in pass 2.
+struct FaceBuild {
+    poly: Vec<[f32; 3]>,
+    normal: [f32; 3],
+    texture: usize,
+    tw: f32,
+    th: f32,
+    s: [f32; 3],
+    s_off: f32,
+    t: [f32; 3],
+    t_off: f32,
+    lm: Option<LightMap>,
+}
+
+impl FaceBuild {
+    /// Atlas uv for a vertex: lit faces map into their lightmap region (luxel
+    /// centres, half-luxel offset); unlit faces sample the reserved white luxel.
+    fn lightmap_uv(&self, v: &[f32; 3], aw: f32, ah: f32) -> [f32; 2] {
+        match &self.lm {
+            Some(lm) => {
+                let lu = (dot(v, &self.s) + self.s_off - lm.bmin_s) / LUXEL;
+                let lv = (dot(v, &self.t) + self.t_off - lm.bmin_t) / LUXEL;
+                [(lm.x as f32 + lu + 0.5) / aw, (lm.y as f32 + lv + 0.5) / ah]
+            }
+            None => [0.5 / aw, 0.5 / ah], // reserved white luxel → fullbright
+        }
+    }
+}
+
+/// Trivial shelf/row atlas packer for lightmaps (atlas width fixed at `ATLAS_W`).
+/// Reserves a 2×2 white block at (0,0) for unlit faces.
+struct Packer {
+    x: usize,
+    y: usize,
+    row_h: usize,
+    max_h: usize,
+}
+
+impl Packer {
+    fn new() -> Self {
+        Packer { x: 2, y: 0, row_h: 2, max_h: 2 }
+    }
+    fn place(&mut self, w: usize, h: usize) -> (usize, usize) {
+        let (pw, ph) = (w + LM_PAD, h + LM_PAD);
+        if self.x + pw > ATLAS_W {
+            self.x = 0;
+            self.y += self.row_h;
+            self.row_h = 0;
+        }
+        let pos = (self.x, self.y);
+        self.x += pw;
+        self.row_h = self.row_h.max(ph);
+        self.max_h = self.max_h.max(self.y + self.row_h);
+        pos
+    }
+    fn height(&self) -> usize {
+        self.max_h
+    }
+}
+
+/// A 2×2 solid-white block (so the unlit (0.5,0.5) sample stays white).
+fn write_white(atlas: &mut [u8], x: usize, y: usize) {
+    for dy in 0..2 {
+        for dx in 0..2 {
+            let d = ((y + dy) * ATLAS_W + (x + dx)) * 4;
+            if let Some(p) = atlas.get_mut(d..d + 4) {
+                p.copy_from_slice(&[255, 255, 255, 255]);
+            }
+        }
+    }
 }
 
 // ---------- serialised output ----------
@@ -74,6 +163,8 @@ pub struct Surface {
     pub texture: usize,
     pub positions: Vec<f32>, // xyz triples, triangulated
     pub uvs: Vec<f32>,       // base-texture uv pairs
+    /// lightmap-atlas uv pairs (maps into `BspData::lightmap`); 0,0 = unlit white
+    pub lightmap_uvs: Vec<f32>,
     pub normals: Vec<f32>,
 }
 
@@ -87,6 +178,8 @@ pub struct BspData {
     pub surfaces: Vec<Surface>,
     pub textures: Vec<BspTexture>,
     pub entities: Vec<Entity>,
+    /// packed baked-lightmap atlas (referenced by `Surface::lightmap_uvs`)
+    pub lightmap: Rgba,
     pub bbox_min: [f32; 3],
     pub bbox_max: [f32; 3],
 }
@@ -98,6 +191,7 @@ pub struct Bsp {
     texinfos: Vec<TexInfo>,
     faces: Vec<FaceT>,
     textures: Vec<MipTexT>,
+    lighting: Vec<u8>,
     entities_raw: String,
 }
 
@@ -153,6 +247,7 @@ impl Bsp {
                     first_edge: u32_at(fb, o + 4) as usize,
                     num_edges: u16_at(fb, o + 8) as usize,
                     texinfo: u16_at(fb, o + 10) as usize,
+                    lightofs: i32_at(fb, o + 16), // after styles[4] at +12
                 }
             })
             .collect();
@@ -165,66 +260,68 @@ impl Bsp {
             String::from_utf8_lossy(&e[..end]).into_owned()
         };
 
+        let lighting = slice(LUMP_LIGHTING).to_vec();
+
         // MODELS lump exists for brush-model face ranges; not needed for the
         // worldspawn render pass yet (TODO).
         let _ = LUMP_MODELS;
 
-        Ok(Bsp { vertices, edges, surfedges, texinfos, faces, textures, entities_raw })
+        Ok(Bsp { vertices, edges, surfedges, texinfos, faces, textures, lighting, entities_raw })
     }
 
-    /// Build render-ready surfaces (grouped by texture), decode embedded
+    /// Build render-ready surfaces (grouped by texture) with base UVs + a packed
+    /// baked-lightmap atlas (uv into `BspData::lightmap`), decode embedded
     /// textures, parse entities.
     pub fn build(&self) -> BspData {
+        // ---- pass 1: per-face polygon + lightmap extents, packed into an atlas
+        // atlas (0,0) is a reserved white luxel for unlit faces (→ fullbright).
+        let mut packer = Packer::new();
+        let faces: Vec<FaceBuild> = self
+            .faces
+            .iter()
+            .filter_map(|face| self.face_build(face, &mut packer))
+            .collect();
+
+        // ---- build the lightmap atlas image from the placements
+        let atlas_h = packer.height().max(1);
+        let mut atlas = vec![0u8; ATLAS_W * atlas_h * 4];
+        write_white(&mut atlas, 0, 0); // the reserved unlit luxel
+        for fb in &faces {
+            if let Some(lm) = &fb.lm {
+                self.blit_lightmap(&mut atlas, atlas_h, lm);
+            }
+        }
+
+        // ---- pass 2: emit triangles grouped by texture
         let ntex = self.textures.len().max(1);
         let mut surfaces: Vec<Surface> = (0..ntex)
-            .map(|t| Surface { texture: t, positions: Vec::new(), uvs: Vec::new(), normals: Vec::new() })
+            .map(|t| Surface { texture: t, positions: Vec::new(), uvs: Vec::new(), lightmap_uvs: Vec::new(), normals: Vec::new() })
             .collect();
         let mut bbmin = [f32::MAX; 3];
         let mut bbmax = [f32::MIN; 3];
+        let aw = ATLAS_W as f32;
+        let ah = atlas_h as f32;
 
-        for face in &self.faces {
-            let ti = match self.texinfos.get(face.texinfo) {
-                Some(t) => t,
-                None => continue,
-            };
-            let (tw, th) = self
-                .textures
-                .get(ti.texture)
-                .map(|t| (t.width.max(1) as f32, t.height.max(1) as f32))
-                .unwrap_or((1.0, 1.0));
-
-            // collect the face's polygon vertices (in winding order)
-            let mut poly: Vec<[f32; 3]> = Vec::with_capacity(face.num_edges);
-            for k in 0..face.num_edges {
-                let se = *self.surfedges.get(face.first_edge + k).unwrap_or(&0);
-                let (a, b) = *self.edges.get(se.unsigned_abs() as usize).unwrap_or(&(0, 0));
-                let vi = if se >= 0 { a } else { b } as usize;
-                poly.push(*self.vertices.get(vi).unwrap_or(&[0.0; 3]));
-            }
-            if poly.len() < 3 {
-                continue;
-            }
-            for v in &poly {
+        for fb in &faces {
+            for v in &fb.poly {
                 for c in 0..3 {
                     bbmin[c] = bbmin[c].min(v[c]);
                     bbmax[c] = bbmax[c].max(v[c]);
                 }
             }
-            let normal = face_normal(&poly);
-            let uv = |v: &[f32; 3]| [(dot(v, &ti.s) + ti.s_off) / tw, (dot(v, &ti.t) + ti.t_off) / th];
-
-            let surf = &mut surfaces[ti.texture.min(ntex - 1)];
-            // triangle fan around vertex 0
-            for k in 1..poly.len() - 1 {
-                for &v in &[&poly[0], &poly[k], &poly[k + 1]] {
-                    surf.positions.extend_from_slice(v);
-                    let t = uv(v);
-                    surf.uvs.extend_from_slice(&t);
-                    surf.normals.extend_from_slice(&normal);
-                }
+            let surf = &mut surfaces[fb.texture.min(ntex - 1)];
+            let emit = |surf: &mut Surface, v: &[f32; 3]| {
+                surf.positions.extend_from_slice(v);
+                surf.uvs.extend_from_slice(&[(dot(v, &fb.s) + fb.s_off) / fb.tw, (dot(v, &fb.t) + fb.t_off) / fb.th]);
+                surf.lightmap_uvs.extend_from_slice(&fb.lightmap_uv(v, aw, ah));
+                surf.normals.extend_from_slice(&fb.normal);
+            };
+            for k in 1..fb.poly.len() - 1 {
+                emit(surf, &fb.poly[0]);
+                emit(surf, &fb.poly[k]);
+                emit(surf, &fb.poly[k + 1]);
             }
         }
-
         surfaces.retain(|s| !s.positions.is_empty());
 
         let textures = self
@@ -232,12 +329,91 @@ impl Bsp {
             .iter()
             .map(|t| BspTexture { name: t.name.clone(), width: t.width, height: t.height, embedded: t.rgba.is_some() })
             .collect();
-
         if bbmin[0] > bbmax[0] {
             bbmin = [0.0; 3];
             bbmax = [0.0; 3];
         }
-        BspData { surfaces, textures, entities: parse_entities(&self.entities_raw), bbox_min: bbmin, bbox_max: bbmax }
+        BspData {
+            surfaces,
+            textures,
+            entities: parse_entities(&self.entities_raw),
+            lightmap: Rgba { width: ATLAS_W as u32, height: atlas_h as u32, pixels: atlas },
+            bbox_min: bbmin,
+            bbox_max: bbmax,
+        }
+    }
+
+    /// Build a face's polygon + texture refs + lightmap placement (packing into
+    /// `packer`). Returns None for degenerate faces.
+    fn face_build(&self, face: &FaceT, packer: &mut Packer) -> Option<FaceBuild> {
+        let ti = self.texinfos.get(face.texinfo)?;
+        let (tw, th) = self
+            .textures
+            .get(ti.texture)
+            .map(|t| (t.width.max(1) as f32, t.height.max(1) as f32))
+            .unwrap_or((1.0, 1.0));
+
+        let mut poly: Vec<[f32; 3]> = Vec::with_capacity(face.num_edges);
+        for k in 0..face.num_edges {
+            let se = *self.surfedges.get(face.first_edge + k).unwrap_or(&0);
+            let (a, b) = *self.edges.get(se.unsigned_abs() as usize).unwrap_or(&(0, 0));
+            let vi = if se >= 0 { a } else { b } as usize;
+            poly.push(*self.vertices.get(vi).unwrap_or(&[0.0; 3]));
+        }
+        if poly.len() < 3 {
+            return None;
+        }
+        let normal = face_normal(&poly);
+
+        // lightmap extents in luxels
+        let (mut min_s, mut min_t) = (f32::MAX, f32::MAX);
+        let (mut max_s, mut max_t) = (f32::MIN, f32::MIN);
+        for v in &poly {
+            let s = dot(v, &ti.s) + ti.s_off;
+            let t = dot(v, &ti.t) + ti.t_off;
+            min_s = min_s.min(s);
+            max_s = max_s.max(s);
+            min_t = min_t.min(t);
+            max_t = max_t.max(t);
+        }
+        let bmin_s = (min_s / LUXEL).floor();
+        let bmin_t = (min_t / LUXEL).floor();
+        let lm_w = ((max_s / LUXEL).ceil() - bmin_s + 1.0) as i64;
+        let lm_h = ((max_t / LUXEL).ceil() - bmin_t + 1.0) as i64;
+        let lm = if face.lightofs >= 0 && (1..=64).contains(&lm_w) && (1..=64).contains(&lm_h) {
+            let (w, h) = (lm_w as usize, lm_h as usize);
+            let off = face.lightofs as usize;
+            // need w*h*3 style-0 luxels available
+            if off + w * h * 3 <= self.lighting.len() {
+                let (x, y) = packer.place(w, h);
+                Some(LightMap { x, y, w, h, off, bmin_s: bmin_s * LUXEL, bmin_t: bmin_t * LUXEL })
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        Some(FaceBuild { poly, normal, texture: ti.texture, tw, th, s: ti.s, s_off: ti.s_off, t: ti.t, t_off: ti.t_off, lm })
+    }
+
+    /// Blit one face's style-0 lightmap (RGB luxels) into the RGBA atlas, with
+    /// edge-clamped padding to stop bilinear bleed between neighbours.
+    fn blit_lightmap(&self, atlas: &mut [u8], _atlas_h: usize, lm: &LightMap) {
+        for py in 0..lm.h + LM_PAD {
+            for px in 0..lm.w + LM_PAD {
+                let sx = px.min(lm.w - 1);
+                let sy = py.min(lm.h - 1);
+                let src = lm.off + (sy * lm.w + sx) * 3;
+                let dst = ((lm.y + py) * ATLAS_W + (lm.x + px)) * 4;
+                if let (Some(s), Some(d)) = (self.lighting.get(src..src + 3), atlas.get_mut(dst..dst + 4)) {
+                    d[0] = s[0];
+                    d[1] = s[1];
+                    d[2] = s[2];
+                    d[3] = 255;
+                }
+            }
+        }
     }
 
     /// A decoded embedded texture by index (for the frontend atlas).
