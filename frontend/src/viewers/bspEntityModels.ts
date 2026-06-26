@@ -40,12 +40,52 @@ const ENTITY_WORLD_MODELS: Record<string, string> = {
   item_security: "w_security.mdl",
 };
 
+/**
+ * Half-Life monster/NPC classnames → their `.mdl`. Hardcoded in the game DLL just
+ * like world models, so mirrored here. `_dead`/`sitting_` variants reuse the base
+ * model (we render the bind pose, not the death/idle sequence). Keys lowercase.
+ */
+const MONSTER_WORLD_MODELS: Record<string, string> = {
+  monster_scientist: "scientist.mdl",
+  monster_scientist_dead: "scientist.mdl",
+  monster_sitting_scientist: "scientist.mdl",
+  monster_barney: "barney.mdl",
+  monster_barney_dead: "barney.mdl",
+  monster_human_grunt: "hgrunt.mdl",
+  monster_hgrunt_dead: "hgrunt.mdl",
+  monster_human_assassin: "hassassin.mdl",
+  monster_alien_grunt: "agrunt.mdl",
+  monster_alien_slave: "islave.mdl",
+  monster_alien_controller: "controller.mdl",
+  monster_headcrab: "headcrab.mdl",
+  monster_babycrab: "headcrab.mdl",
+  monster_zombie: "zombie.mdl",
+  monster_houndeye: "houndeye.mdl",
+  monster_bullchicken: "bullsquid.mdl",
+  monster_cockroach: "roach.mdl",
+  monster_leech: "leech.mdl",
+  monster_barnacle: "barnacle.mdl",
+  monster_gargantua: "garg.mdl",
+  monster_bigmomma: "big_mom.mdl",
+  monster_gman: "gman.mdl",
+  monster_ichthyosaur: "icky.mdl",
+  monster_nihilanth: "nihilanth.mdl",
+  monster_sentry: "sentry.mdl",
+  monster_turret: "turret.mdl",
+  monster_miniturret: "miniturret.mdl",
+  monster_apache: "apache.mdl",
+  monster_tentacle: "tentacle2.mdl",
+  monster_snark: "w_squeak.mdl",
+  monster_rat: "bigrat.mdl",
+};
+
 /** Resolve an entity's renderable `.mdl` path: an explicit `model` key, else the
  *  classname's world model. Returns null for brush models (`*N`) and unknowns. */
 export function entityModelPath(e: BspEntity): string | null {
   const model = e.keys.model;
   if (model && model.toLowerCase().endsWith(".mdl")) return model;
-  const w = ENTITY_WORLD_MODELS[(e.keys.classname ?? "").toLowerCase()];
+  const c = (e.keys.classname ?? "").toLowerCase();
+  const w = ENTITY_WORLD_MODELS[c] ?? MONSTER_WORLD_MODELS[c];
   return w ? `models/${w}` : null;
 }
 
