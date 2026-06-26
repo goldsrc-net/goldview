@@ -54,6 +54,7 @@ struct FaceT {
     first_edge: usize,
     num_edges: usize,
     texinfo: usize,
+    style0: u8,    // first lightstyle; only style 0 (LS_NORMAL) is statically baked
     lightofs: i32, // byte offset into LIGHTING (style-0 luxels), or -1 if unlit
 }
 
@@ -64,15 +65,16 @@ struct MipTexT {
     rgba: Option<Vec<u8>>, // None = external (lives in a WAD)
 }
 
-/// A face's lightmap placement within the atlas + the world-space luxel origin.
+/// A face's lightmap placement within the atlas + its texture-space polygon
+/// midpoint (the C++ hlbsp mapping centres the lightmap on the polygon).
 struct LightMap {
     x: usize,
     y: usize,
     w: usize,
     h: usize,
     off: usize, // byte offset of style-0 luxels in the LIGHTING lump
-    bmin_s: f32,
-    bmin_t: f32,
+    mid_poly_u: f32,
+    mid_poly_v: f32,
 }
 
 /// Per-face intermediate built in pass 1, consumed in pass 2.
@@ -90,14 +92,15 @@ struct FaceBuild {
 }
 
 impl FaceBuild {
-    /// Atlas uv for a vertex: lit faces map into their lightmap region (luxel
-    /// centres, half-luxel offset); unlit faces sample the reserved white luxel.
+    /// Atlas uv for a vertex (ported from hlbsp C++): the per-face lightmap pixel
+    /// coord is `nWidth/2 + (fU - midPolyU)/16`, placed at the atlas slot. Unlit
+    /// faces sample the reserved white luxel.
     fn lightmap_uv(&self, v: &[f32; 3], aw: f32, ah: f32) -> [f32; 2] {
         match &self.lm {
             Some(lm) => {
-                let lu = (dot(v, &self.s) + self.s_off - lm.bmin_s) / LUXEL;
-                let lv = (dot(v, &self.t) + self.t_off - lm.bmin_t) / LUXEL;
-                [(lm.x as f32 + lu + 0.5) / aw, (lm.y as f32 + lv + 0.5) / ah]
+                let u = lm.w as f32 / 2.0 + (dot(v, &self.s) + self.s_off - lm.mid_poly_u) / LUXEL;
+                let vv = lm.h as f32 / 2.0 + (dot(v, &self.t) + self.t_off - lm.mid_poly_v) / LUXEL;
+                [(lm.x as f32 + u) / aw, (lm.y as f32 + vv) / ah]
             }
             None => [0.5 / aw, 0.5 / ah], // reserved white luxel → fullbright
         }
@@ -247,7 +250,8 @@ impl Bsp {
                     first_edge: u32_at(fb, o + 4) as usize,
                     num_edges: u16_at(fb, o + 8) as usize,
                     texinfo: u16_at(fb, o + 10) as usize,
-                    lightofs: i32_at(fb, o + 16), // after styles[4] at +12
+                    style0: *fb.get(o + 12).unwrap_or(&0), // styles[4] at +12
+                    lightofs: i32_at(fb, o + 16),
                 }
             })
             .collect();
@@ -376,17 +380,15 @@ impl Bsp {
             min_t = min_t.min(t);
             max_t = max_t.max(t);
         }
-        let bmin_s = (min_s / LUXEL).floor();
-        let bmin_t = (min_t / LUXEL).floor();
-        let lm_w = ((max_s / LUXEL).ceil() - bmin_s + 1.0) as i64;
-        let lm_h = ((max_t / LUXEL).ceil() - bmin_t + 1.0) as i64;
-        let lm = if face.lightofs >= 0 && (1..=64).contains(&lm_w) && (1..=64).contains(&lm_h) {
+        let lm_w = ((max_s / LUXEL).ceil() - (min_s / LUXEL).floor() + 1.0) as i64;
+        let lm_h = ((max_t / LUXEL).ceil() - (min_t / LUXEL).floor() + 1.0) as i64;
+        // only style-0 (statically baked) faces with a valid offset get a lightmap
+        let lm = if face.style0 == 0 && face.lightofs >= 0 && (1..=64).contains(&lm_w) && (1..=64).contains(&lm_h) {
             let (w, h) = (lm_w as usize, lm_h as usize);
             let off = face.lightofs as usize;
-            // need w*h*3 style-0 luxels available
             if off + w * h * 3 <= self.lighting.len() {
                 let (x, y) = packer.place(w, h);
-                Some(LightMap { x, y, w, h, off, bmin_s: bmin_s * LUXEL, bmin_t: bmin_t * LUXEL })
+                Some(LightMap { x, y, w, h, off, mid_poly_u: (min_s + max_s) / 2.0, mid_poly_v: (min_t + max_t) / 2.0 })
             } else {
                 None
             }
