@@ -4,7 +4,10 @@ import { loadBsp, bspTexture, loadModel } from "../api";
 import type { BspData } from "../types";
 import { FlyControls } from "../three/FlyControls";
 import { buildStaticModel, disposeStaticModel } from "../three/staticModel";
+import { loadSkybox } from "../three/skybox";
 import { entityModelPath, entityOrigin, entityYaw } from "./bspEntityModels";
+
+const VOID_COLOR = new THREE.Color(0x0e0f12);
 
 type Mode = "flat" | "textured" | "lit";
 
@@ -49,7 +52,8 @@ export default function BspViewer(props: { path: string }) {
   const [showEntities, setShowEntities] = createSignal(true);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0e0f12);
+  scene.background = VOID_COLOR;
+  let skybox: THREE.CubeTexture | undefined;
   const group = new THREE.Group();
   group.rotation.x = -Math.PI / 2; // GoldSrc Z-up → Three Y-up
   scene.add(group);
@@ -80,6 +84,9 @@ export default function BspViewer(props: { path: string }) {
     texMap.clear();
     lightmap?.dispose();
     lightmap = undefined;
+    skybox?.dispose();
+    skybox = undefined;
+    scene.background = VOID_COLOR;
   }
 
   function applyMode() {
@@ -112,6 +119,12 @@ export default function BspViewer(props: { path: string }) {
     });
     if (!data) return;
     disposeWorld();
+
+    // skybox (worldspawn `skyname` → gfx/env/<name>*). Shown as the scene
+    // background; sky faces are skipped below so it shows through.
+    const skyname = data.entities.find((e) => e.keys.classname === "worldspawn")?.keys.skyname;
+    skybox = (skyname && (await loadSkybox(skyname))) || undefined;
+    scene.background = skybox ?? VOID_COLOR;
 
     // baked-lightmap atlas
     const lm = data.lightmap;
@@ -150,10 +163,11 @@ export default function BspViewer(props: { path: string }) {
       geo.setAttribute("uv", new THREE.Float32BufferAttribute(s.uvs, 2));
       geo.setAttribute("uv1", new THREE.Float32BufferAttribute(s.lightmap_uvs, 2)); // lightMap channel
       const name = data.textures[s.texture]?.name ?? "";
+      const isSky = name.toLowerCase() === "sky";
+      if (isSky && skybox) continue; // skybox shows through; don't draw the sky brush
       const masked = name.startsWith("{"); // colour-keyed (index 255 transparent)
-      // GoldSrc renders sky separately; the `sky` miptex is just a placeholder
-      // (a caution-stripe pattern), so flat-shade it (real skybox = future work).
-      const mat = name.toLowerCase() === "sky"
+      // sky brushes (no skybox) get a flat sky colour rather than the placeholder miptex
+      const mat = isSky
         ? new THREE.MeshBasicMaterial({ color: 0x8fb3d9, side: THREE.DoubleSide })
         : new THREE.MeshBasicMaterial({
             map: texMap.get(s.texture) ?? missing,
