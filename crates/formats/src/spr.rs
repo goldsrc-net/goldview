@@ -3,6 +3,7 @@
 //! alpha (normal/additive/index-alpha/alpha-test). Frame *groups* are flattened
 //! into the frame list.
 
+use crate::palette::{palettize, PaletteMode};
 use crate::Rgba;
 use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian as LE, ReadBytesExt};
@@ -28,44 +29,15 @@ pub struct SpriteData {
     pub frames: Vec<Rgba>,
 }
 
+/// sprite `texFormat` → palette transparency mode: 3 = alphatest (colour-key),
+/// 2 = index-alpha, 0/1 = normal/additive (opaque).
 fn decode_pixels(indices: &[u8], palette: &[u8], w: u32, h: u32, fmt: i32) -> Rgba {
-    let mut out = Rgba::new(w, h);
-    // index-alpha uses the LAST palette entry as the single colour
-    let last = 255 * 3;
-    for (i, &idx) in indices.iter().enumerate() {
-        let o = i * 4;
-        if o + 4 > out.pixels.len() {
-            break;
-        }
-        let p = idx as usize * 3;
-        match fmt {
-            3 => {
-                // alphatest: colour-key on index 255
-                if idx == 255 {
-                    continue;
-                }
-                if p + 2 < palette.len() {
-                    out.pixels[o..o + 3].copy_from_slice(&palette[p..p + 3]);
-                    out.pixels[o + 3] = 255;
-                }
-            }
-            2 => {
-                // index-alpha: colour = last palette entry, alpha = index value
-                if last + 2 < palette.len() {
-                    out.pixels[o..o + 3].copy_from_slice(&palette[last..last + 3]);
-                }
-                out.pixels[o + 3] = idx;
-            }
-            _ => {
-                // normal / additive
-                if p + 2 < palette.len() {
-                    out.pixels[o..o + 3].copy_from_slice(&palette[p..p + 3]);
-                    out.pixels[o + 3] = 255;
-                }
-            }
-        }
-    }
-    out
+    let mode = match fmt {
+        3 => PaletteMode::ColorKey,
+        2 => PaletteMode::IndexAlpha,
+        _ => PaletteMode::Opaque,
+    };
+    palettize(indices, palette, w, h, mode)
 }
 
 /// Decode a sprite into all of its frames (RGBA).

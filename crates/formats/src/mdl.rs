@@ -552,23 +552,16 @@ impl Model {
     }
 }
 
-/// MDL texture: w*h palette indices then 256*3 RGB palette, at `off`.
+/// MDL texture: w*h palette indices then 256*3 RGB palette, at `off`. Opaque.
 fn decode_texture(b: &[u8], off: usize, w: u32, h: u32) -> Vec<u8> {
     let n = (w as usize) * (h as usize);
-    let mut out = vec![0u8; n * 4];
     let pal_off = off + n;
     if pal_off + 768 > b.len() || off + n > b.len() {
-        return out;
+        return vec![0u8; n * 4];
     }
+    let indices = &b[off..off + n];
     let pal = &b[pal_off..pal_off + 768];
-    for i in 0..n {
-        let idx = b[off + i] as usize * 3;
-        out[i * 4] = pal[idx];
-        out[i * 4 + 1] = pal[idx + 1];
-        out[i * 4 + 2] = pal[idx + 2];
-        out[i * 4 + 3] = 255;
-    }
-    out
+    crate::palette::palettize(indices, pal, w, h, crate::palette::PaletteMode::Opaque).pixels
 }
 
 /// Decode one animation channel (0-2 pos, 3-5 rot) for a bone at `frame`.

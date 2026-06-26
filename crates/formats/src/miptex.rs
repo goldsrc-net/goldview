@@ -3,6 +3,7 @@
 //! palette appended after the pixel data. Names beginning with `{` use palette
 //! index 255 as a transparent colour-key.
 
+use crate::palette::{palettize, PaletteMode};
 use crate::Rgba;
 use anyhow::{anyhow, Result};
 
@@ -33,27 +34,13 @@ fn read_palette(data: &[u8], count_off: usize) -> Result<&[u8]> {
     data.get(pal_off..pal_end).ok_or_else(|| anyhow!("palette out of range"))
 }
 
-/// Map palette indices → RGBA. `transparent` makes index 255 fully transparent.
-fn palettize(indices: &[u8], palette: &[u8], w: u32, h: u32, transparent: bool) -> Rgba {
-    let mut out = Rgba::new(w, h);
-    for (i, &idx) in indices.iter().enumerate() {
-        let o = i * 4;
-        if o + 4 > out.pixels.len() {
-            break;
-        }
-        if transparent && idx == 255 {
-            // colour-key: leave fully transparent (already zeroed)
-            continue;
-        }
-        let p = idx as usize * 3;
-        if p + 2 < palette.len() {
-            out.pixels[o] = palette[p];
-            out.pixels[o + 1] = palette[p + 1];
-            out.pixels[o + 2] = palette[p + 2];
-            out.pixels[o + 3] = 255;
-        }
+/// `transparent` (names beginning `{`) → colour-key on index 255, else opaque.
+fn mode(transparent: bool) -> PaletteMode {
+    if transparent {
+        PaletteMode::ColorKey
+    } else {
+        PaletteMode::Opaque
     }
-    out
 }
 
 /// Read just the `(name, width, height)` of a miptex header without decoding.
@@ -84,7 +71,7 @@ pub fn decode_miptex(data: &[u8]) -> Result<Rgba> {
     let mip3_len = ((width / 8).max(1) as usize) * ((height / 8).max(1) as usize);
     let palette = read_palette(data, off3 + mip3_len)?;
 
-    Ok(palettize(indices, palette, width, height, name.starts_with('{')))
+    Ok(palettize(indices, palette, width, height, mode(name.starts_with('{'))))
 }
 
 /// Decode a qpic lump: `u32 width, u32 height, [w*h indices], u16 count, palette`.
@@ -97,7 +84,7 @@ pub fn decode_qpic(data: &[u8]) -> Result<Rgba> {
     let npix = (width as usize) * (height as usize);
     let indices = data.get(8..8 + npix).ok_or_else(|| anyhow!("qpic pixels out of range"))?;
     let palette = read_palette(data, 8 + npix)?;
-    Ok(palettize(indices, palette, width, height, false))
+    Ok(palettize(indices, palette, width, height, PaletteMode::Opaque))
 }
 
 /// Best-effort qfont decode: `qpic` header + a 256-entry charinfo table before
@@ -115,5 +102,5 @@ pub fn decode_qfont(data: &[u8]) -> Result<Rgba> {
         .get(pix_off..pix_off + npix)
         .ok_or_else(|| anyhow!("qfont pixels out of range"))?;
     let palette = read_palette(data, pix_off + npix)?;
-    Ok(palettize(indices, palette, width, height, true))
+    Ok(palettize(indices, palette, width, height, PaletteMode::ColorKey))
 }

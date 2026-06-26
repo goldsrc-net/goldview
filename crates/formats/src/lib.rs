@@ -13,6 +13,7 @@
 pub mod img;
 pub mod mdl;
 pub mod miptex;
+pub mod palette;
 pub mod spr;
 pub mod wad;
 
