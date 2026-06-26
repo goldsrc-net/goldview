@@ -3,7 +3,8 @@ import * as THREE from "three";
 /**
  * Turntable/orbit camera for the model viewer (no pointer lock):
  *  - drag (left button) orbits around the model
- *  - A/D orbit left/right, W/S zoom in/out
+ *  - Q/E orbit left/right, W/S zoom in/out
+ *  - A/D pan left/right (view-relative), Z/C pan up/down (world height)
  *  - plain mouse wheel zooms (only while hovering the canvas)
  * Keys act only while the pointer is over the canvas, so they don't hijack
  * typing elsewhere.
@@ -92,10 +93,29 @@ export class OrbitControls {
   update(dt: number) {
     if (this.keys.size === 0) return;
     const rot = 1.5 * dt; // rad/s
-    if (this.keys.has("KeyA")) this.theta += rot;
-    if (this.keys.has("KeyD")) this.theta -= rot;
+    const pan = this.radius * 1.2 * dt; // pan speed scales with distance
+    // Q/E orbit left/right
+    if (this.keys.has("KeyQ")) this.theta += rot;
+    if (this.keys.has("KeyE")) this.theta -= rot;
+    // W/S zoom
     if (this.keys.has("KeyW")) this.zoom(1 - 1.2 * dt);
     if (this.keys.has("KeyS")) this.zoom(1 + 1.2 * dt);
+    // A/D pan horizontally along the camera's view-relative right vector, so it
+    // tracks where you're looking (not a fixed world axis). Right = (cosθ,0,-sinθ);
+    // panning the target left makes the model appear to slide right on screen.
+    const rx = Math.cos(this.theta);
+    const rz = -Math.sin(this.theta);
+    if (this.keys.has("KeyA")) {
+      this.target.x -= rx * pan;
+      this.target.z -= rz * pan;
+    }
+    if (this.keys.has("KeyD")) {
+      this.target.x += rx * pan;
+      this.target.z += rz * pan;
+    }
+    // Z/C pan up/down (world height)
+    if (this.keys.has("KeyZ")) this.target.y += pan;
+    if (this.keys.has("KeyC")) this.target.y -= pan;
     this.apply();
   }
 

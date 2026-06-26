@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, Show, For } from "solid-js";
+import { createEffect, createSignal, on, onCleanup, Show, For } from "solid-js";
 import * as THREE from "three";
 import { ModelController, currentModel, setCurrentModel } from "./ModelController";
 import { LazyCanvas } from "../handlers/lazy";
@@ -26,18 +26,27 @@ export default function ModelViewer(props: { path: string }) {
     renderer = undefined;
   });
 
-  createEffect(() => {
-    const path = props.path;
-    if (!canvas || !container) return;
-    if (!renderer) {
-      renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-      renderer.setPixelRatio(window.devicePixelRatio);
-    }
-    teardown();
-    ctrl = new ModelController(path);
-    setCurrentModel(ctrl);
-    ctrl.attach(renderer, container);
-  });
+  // Rebuild the scene only when the *path* changes. `on()` scopes the dependency
+  // to props.path so the callback body (which calls ctrl.attach → loadModel(...,
+  // skin(), bodyparts())) doesn't subscribe the effect to skin/bodyparts — else a
+  // skin/body-part change would re-fire this effect and recreate the controller,
+  // discarding the very change that triggered it.
+  createEffect(
+    on(
+      () => props.path,
+      (path) => {
+        if (!canvas || !container) return;
+        if (!renderer) {
+          renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+          renderer.setPixelRatio(window.devicePixelRatio);
+        }
+        teardown();
+        ctrl = new ModelController(path);
+        setCurrentModel(ctrl);
+        ctrl.attach(renderer, container);
+      },
+    ),
+  );
 
   const showTextures = () => currentModel()?.viewMode() === "textures";
 
@@ -127,7 +136,7 @@ export default function ModelViewer(props: { path: string }) {
         )}
       </Show>
       <Show when={!showTextures()}>
-        <div class="gl-hint">drag to rotate · scroll or W/S zoom · A/D rotate</div>
+        <div class="gl-hint">drag to rotate · scroll or W/S zoom · Q/E rotate · A/D pan left·right · Z/C pan up·down</div>
       </Show>
       </div>
     </>

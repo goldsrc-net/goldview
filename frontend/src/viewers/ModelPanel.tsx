@@ -8,10 +8,11 @@ export default function ModelPanel() {
   return (
     <div class="model-panel">
       <h3>Model</h3>
-      <Show when={c() && c()!.data()} fallback={<div class="mp-num">loading…</div>}>
-      {(model) => {
-        const ctrl = c()!;
-        return (
+      {/* keyed on the controller so a replaced model rebinds (no stale capture) */}
+      <Show when={c()} keyed fallback={<div class="mp-num">loading…</div>}>
+      {(ctrl) => (
+        <Show when={ctrl.data()} fallback={<div class="mp-num">loading…</div>}>
+        {(model) => (
           <>
             {/* sequences + playback */}
             <Show when={model().sequences.length}>
@@ -96,24 +97,6 @@ export default function ModelPanel() {
               </For>
             </Show>
 
-            {/* DEBUG (bodypart bug): cycle submodel + show state */}
-            <div class="mp-row">
-              <button
-                onClick={() => {
-                  const cur = ctrl.bodyparts()[0] ?? 0;
-                  const n = ctrl.partsMeta()[0]?.models.length || 1;
-                  console.log("[dbg] cycle bp0", cur, "->", (cur + 1) % n, "n=", n);
-                  ctrl.setBodypart(0, (cur + 1) % n);
-                }}
-              >
-                cycle bp0
-              </button>
-              <span class="mp-num" style={{ color: "orange" }}>
-                bp={JSON.stringify(ctrl.bodyparts())} v=
-                {model().parts[0]?.submeshes.reduce((s, m) => s + m.positions.length / 3, 0) ?? 0}
-              </span>
-            </div>
-
             {/* named lists (collapsible) */}
             <details class="mp-list">
               <summary>Attachments ({model().attachments.length})</summary>
@@ -151,8 +134,9 @@ export default function ModelPanel() {
               </For>
             </details>
           </>
-        );
-      }}
+        )}
+        </Show>
+      )}
       </Show>
     </div>
   );

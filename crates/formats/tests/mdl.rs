@@ -51,3 +51,25 @@ fn parse_and_build_real_model() {
         }
     }
 }
+
+/// Body-part submodel selection must actually change the built geometry.
+/// gordon's `body` part has 2 submodels (low/high-res head) with different
+/// vertex counts, so build([0]) and build([1]) must differ.
+#[test]
+fn bodypart_selection_changes_geometry() {
+    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../xash3d-fwgs/dist/client-x64/valve/models/player/gordon/gordon.mdl");
+    if !p.exists() {
+        eprintln!("skip: gordon.mdl not present");
+        return;
+    }
+    let model = Model::parse(std::fs::read(&p).unwrap()).expect("parse gordon.mdl");
+
+    let part0 = &model.build(0, &[0]).parts[0];
+    let part1 = &model.build(0, &[1]).parts[0];
+    assert!(part0.model_names.len() >= 2, "gordon body part should expose ≥2 submodels, got {:?}", part0.model_names);
+
+    let verts = |p: &gv_formats::mdl::PartData| -> usize { p.submeshes.iter().map(|s| s.positions.len() / 3).sum() };
+    eprintln!("submodel0={} verts, submodel1={} verts ({:?})", verts(part0), verts(part1), part0.model_names);
+    assert_ne!(verts(part0), verts(part1), "selecting submodel 1 must change geometry vs submodel 0");
+}
