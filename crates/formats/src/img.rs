@@ -5,10 +5,11 @@ use crate::Rgba;
 use anyhow::{anyhow, Context, Result};
 use std::io::{Cursor, Read};
 
-/// Decode TGA / BMP / PNG bytes into top-down RGBA8. `ext` is the file
-/// extension used as a format hint — **required for TGA**, which (unlike BMP/PNG)
-/// has no magic bytes, so the `image` crate's content-sniffing can't detect it.
-pub fn decode_image(bytes: &[u8], ext: &str) -> Result<Rgba> {
+/// Decode TGA / BMP / PNG bytes into a `DynamicImage`, using `ext` as a format
+/// hint — **required for TGA**, which (unlike BMP/PNG) has no magic bytes, so the
+/// `image` crate's content-sniffing can't detect it. Single source of the
+/// format-hint match for both full decode and thumbnailing.
+fn load_dynamic(bytes: &[u8], ext: &str) -> Result<image::DynamicImage> {
     use image::ImageFormat;
     let fmt = match ext.to_ascii_lowercase().as_str() {
         "tga" => Some(ImageFormat::Tga),
@@ -16,32 +17,27 @@ pub fn decode_image(bytes: &[u8], ext: &str) -> Result<Rgba> {
         "png" => Some(ImageFormat::Png),
         _ => None,
     };
-    let img = match fmt {
-        Some(f) => image::load_from_memory_with_format(bytes, f).context("decode image")?,
-        None => image::load_from_memory(bytes).context("decode image (sniffed)")?,
-    };
-    let rgba = img.to_rgba8();
-    Ok(Rgba { width: rgba.width(), height: rgba.height(), pixels: rgba.into_raw() })
+    match fmt {
+        Some(f) => image::load_from_memory_with_format(bytes, f).context("decode image"),
+        None => image::load_from_memory(bytes).context("decode image (sniffed)"),
+    }
+}
+
+fn to_rgba(img: image::RgbaImage) -> Rgba {
+    Rgba { width: img.width(), height: img.height(), pixels: img.into_raw() }
+}
+
+/// Decode TGA / BMP / PNG bytes into top-down RGBA8.
+pub fn decode_image(bytes: &[u8], ext: &str) -> Result<Rgba> {
+    Ok(to_rgba(load_dynamic(bytes, ext)?.to_rgba8()))
 }
 
 /// Decode then downscale to fit within `max`×`max` (aspect-preserving) for grid
 /// thumbnails. Cheaper to ship than full images and keeps big folders smooth.
 pub fn decode_thumbnail(bytes: &[u8], ext: &str, max: u32) -> Result<Rgba> {
-    use image::ImageFormat;
-    let fmt = match ext.to_ascii_lowercase().as_str() {
-        "tga" => Some(ImageFormat::Tga),
-        "bmp" => Some(ImageFormat::Bmp),
-        "png" => Some(ImageFormat::Png),
-        _ => None,
-    };
-    let img = match fmt {
-        Some(f) => image::load_from_memory_with_format(bytes, f).context("decode thumb")?,
-        None => image::load_from_memory(bytes).context("decode thumb (sniffed)")?,
-    };
-    let max = max.max(1);
-    let thumb = img.thumbnail(max, max); // fast box filter, preserves aspect
-    let rgba = thumb.to_rgba8();
-    Ok(Rgba { width: rgba.width(), height: rgba.height(), pixels: rgba.into_raw() })
+    let img = load_dynamic(bytes, ext)?;
+    let thumb = img.thumbnail(max.max(1), max.max(1)); // fast box filter, preserves aspect
+    Ok(to_rgba(thumb.to_rgba8()))
 }
 
 /// Downscale an already-decoded RGBA buffer to fit within `max`×`max`

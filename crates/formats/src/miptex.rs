@@ -23,6 +23,16 @@ pub fn cstr(b: &[u8]) -> String {
     String::from_utf8_lossy(&b[..end]).into_owned()
 }
 
+/// Read the palette that follows the pixel data: `[u16 count][count*3 RGB]` at
+/// `count_off`. Returns the RGB slice (clamped to the buffer). Single source of
+/// the "palette appended after pixels" parse for miptex / qpic / qfont.
+fn read_palette(data: &[u8], count_off: usize) -> Result<&[u8]> {
+    let count = rd_u16(data, count_off).unwrap_or(256) as usize;
+    let pal_off = count_off + 2;
+    let pal_end = (pal_off + count * 3).min(data.len());
+    data.get(pal_off..pal_end).ok_or_else(|| anyhow!("palette out of range"))
+}
+
 /// Map palette indices → RGBA. `transparent` makes index 255 fully transparent.
 fn palettize(indices: &[u8], palette: &[u8], w: u32, h: u32, transparent: bool) -> Rgba {
     let mut out = Rgba::new(w, h);
@@ -72,13 +82,7 @@ pub fn decode_miptex(data: &[u8]) -> Result<Rgba> {
 
     // palette sits after mip3: [mip3 pixels][u16 count][count*3 RGB]
     let mip3_len = ((width / 8).max(1) as usize) * ((height / 8).max(1) as usize);
-    let count_off = off3 + mip3_len;
-    let count = rd_u16(data, count_off).unwrap_or(256) as usize;
-    let pal_off = count_off + 2;
-    let pal_end = (pal_off + count * 3).min(data.len());
-    let palette = data
-        .get(pal_off..pal_end)
-        .ok_or_else(|| anyhow!("miptex palette out of range"))?;
+    let palette = read_palette(data, off3 + mip3_len)?;
 
     Ok(palettize(indices, palette, width, height, name.starts_with('{')))
 }
@@ -92,11 +96,7 @@ pub fn decode_qpic(data: &[u8]) -> Result<Rgba> {
     }
     let npix = (width as usize) * (height as usize);
     let indices = data.get(8..8 + npix).ok_or_else(|| anyhow!("qpic pixels out of range"))?;
-    let count_off = 8 + npix;
-    let count = rd_u16(data, count_off).unwrap_or(256) as usize;
-    let pal_off = count_off + 2;
-    let pal_end = (pal_off + count * 3).min(data.len());
-    let palette = data.get(pal_off..pal_end).ok_or_else(|| anyhow!("qpic palette out of range"))?;
+    let palette = read_palette(data, 8 + npix)?;
     Ok(palettize(indices, palette, width, height, false))
 }
 
@@ -114,10 +114,6 @@ pub fn decode_qfont(data: &[u8]) -> Result<Rgba> {
     let indices = data
         .get(pix_off..pix_off + npix)
         .ok_or_else(|| anyhow!("qfont pixels out of range"))?;
-    let count_off = pix_off + npix;
-    let count = rd_u16(data, count_off).unwrap_or(256) as usize;
-    let pal_off = count_off + 2;
-    let pal_end = (pal_off + count * 3).min(data.len());
-    let palette = data.get(pal_off..pal_end).ok_or_else(|| anyhow!("qfont palette out of range"))?;
+    let palette = read_palette(data, pix_off + npix)?;
     Ok(palettize(indices, palette, width, height, true))
 }

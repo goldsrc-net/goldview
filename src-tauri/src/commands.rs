@@ -15,6 +15,15 @@ fn err<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
 }
 
+/// File extension (without the dot); "" if none. The format hint for image
+/// decode. Mirrors the frontend's `extOf` (single Rust copy).
+fn ext_of(path: &str) -> &str {
+    match path.rfind('.') {
+        Some(i) => &path[i + 1..],
+        None => "",
+    }
+}
+
 /// Open a game directory (reads its `fallback_dir`) and return the merged tree.
 #[tauri::command]
 pub fn open_mod(state: State<AppState>, path: String) -> CmdResult<OpenResult> {
@@ -69,7 +78,7 @@ pub fn read_text(state: State<AppState>, path: String) -> CmdResult<String> {
 #[tauri::command]
 pub fn load_image(state: State<AppState>, path: String) -> CmdResult<Rgba> {
     let bytes = read_bytes(&state, &path)?;
-    let ext = path.rsplit('.').next().unwrap_or("");
+    let ext = ext_of(&path);
     img::decode_image(&bytes, ext).map_err(err)
 }
 
@@ -78,7 +87,7 @@ pub fn load_image(state: State<AppState>, path: String) -> CmdResult<Rgba> {
 #[tauri::command]
 pub fn load_thumbnail(state: State<AppState>, path: String, max: u32) -> CmdResult<Rgba> {
     let bytes = read_bytes(&state, &path)?;
-    let ext = path.rsplit('.').next().unwrap_or("");
+    let ext = ext_of(&path);
     img::decode_thumbnail(&bytes, ext, max).map_err(err)
 }
 
