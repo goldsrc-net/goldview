@@ -20,7 +20,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$root"
 
-xwin_dir="${XWIN_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/goldview/xwin}"
+xwin_dir="${XWIN_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/xwin}"
 version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
 [ $# -gt 0 ] || set -- linux win64 win32
 
