@@ -204,7 +204,8 @@ pub fn reveal_path(state: State<AppState>, path: String) -> CmdResult<()> {
         m.resolve(&path).ok_or_else(|| format!("not found: {path}"))?
     };
     let target = if abs.is_dir() { abs.as_path() } else { abs.parent().unwrap_or(&abs) };
-    std::process::Command::new("xdg-open").arg(target).spawn().map_err(err)?;
+    let opener = if cfg!(windows) { "explorer" } else { "xdg-open" };
+    std::process::Command::new(opener).arg(target).spawn().map_err(err)?;
     Ok(())
 }
 
