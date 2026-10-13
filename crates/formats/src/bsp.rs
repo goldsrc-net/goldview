@@ -13,16 +13,24 @@ use anyhow::{anyhow, Result};
 
 // little-endian, bounds-safe readers (a malformed map must never panic)
 fn i32_at(b: &[u8], o: usize) -> i32 {
-    b.get(o..o + 4).map(|s| i32::from_le_bytes([s[0], s[1], s[2], s[3]])).unwrap_or(0)
+    b.get(o..o + 4)
+        .map(|s| i32::from_le_bytes([s[0], s[1], s[2], s[3]]))
+        .unwrap_or(0)
 }
 fn u32_at(b: &[u8], o: usize) -> u32 {
-    b.get(o..o + 4).map(|s| u32::from_le_bytes([s[0], s[1], s[2], s[3]])).unwrap_or(0)
+    b.get(o..o + 4)
+        .map(|s| u32::from_le_bytes([s[0], s[1], s[2], s[3]]))
+        .unwrap_or(0)
 }
 fn u16_at(b: &[u8], o: usize) -> u16 {
-    b.get(o..o + 2).map(|s| u16::from_le_bytes([s[0], s[1]])).unwrap_or(0)
+    b.get(o..o + 2)
+        .map(|s| u16::from_le_bytes([s[0], s[1]]))
+        .unwrap_or(0)
 }
 fn f32_at(b: &[u8], o: usize) -> f32 {
-    b.get(o..o + 4).map(|s| f32::from_le_bytes([s[0], s[1], s[2], s[3]])).unwrap_or(0.0)
+    b.get(o..o + 4)
+        .map(|s| f32::from_le_bytes([s[0], s[1], s[2], s[3]]))
+        .unwrap_or(0.0)
 }
 fn vec3_at(b: &[u8], o: usize) -> [f32; 3] {
     [f32_at(b, o), f32_at(b, o + 4), f32_at(b, o + 8)]
@@ -128,7 +136,12 @@ struct Packer {
 
 impl Packer {
     fn new() -> Self {
-        Packer { x: 2, y: 0, row_h: 2, max_h: 2 }
+        Packer {
+            x: 2,
+            y: 0,
+            row_h: 2,
+            max_h: 2,
+        }
     }
     fn place(&mut self, w: usize, h: usize) -> (usize, usize) {
         let (pw, ph) = (w + LM_PAD, h + LM_PAD);
@@ -214,12 +227,18 @@ pub struct Bsp {
 impl Bsp {
     pub fn parse(bytes: Vec<u8>) -> Result<Bsp> {
         if i32_at(&bytes, 0) != 30 {
-            return Err(anyhow!("not a GoldSrc BSP v30 (got version {})", i32_at(&bytes, 0)));
+            return Err(anyhow!(
+                "not a GoldSrc BSP v30 (got version {})",
+                i32_at(&bytes, 0)
+            ));
         }
         // lump table: 15 × (i32 ofs, i32 len) starting at offset 4
         let lump = |i: usize| -> (usize, usize) {
             let o = 4 + i * 8;
-            (i32_at(&bytes, o).max(0) as usize, i32_at(&bytes, o + 4).max(0) as usize)
+            (
+                i32_at(&bytes, o).max(0) as usize,
+                i32_at(&bytes, o + 4).max(0) as usize,
+            )
         };
         let slice = |i: usize| -> &[u8] {
             let (o, l) = lump(i);
@@ -232,7 +251,9 @@ impl Bsp {
 
         // EDGES: (u16, u16)
         let eb = slice(LUMP_EDGES);
-        let edges = (0..eb.len() / 4).map(|i| (u16_at(eb, i * 4), u16_at(eb, i * 4 + 2))).collect();
+        let edges = (0..eb.len() / 4)
+            .map(|i| (u16_at(eb, i * 4), u16_at(eb, i * 4 + 2)))
+            .collect();
 
         // SURFEDGES: i32
         let sb = slice(LUMP_SURFEDGES);
@@ -290,11 +311,24 @@ impl Bsp {
         let models = (0..mb.len() / 64)
             .map(|i| {
                 let o = i * 64;
-                ModelT { first_face: i32_at(mb, o + 56).max(0) as usize, num_faces: i32_at(mb, o + 60).max(0) as usize }
+                ModelT {
+                    first_face: i32_at(mb, o + 56).max(0) as usize,
+                    num_faces: i32_at(mb, o + 60).max(0) as usize,
+                }
             })
             .collect();
 
-        Ok(Bsp { vertices, edges, surfedges, texinfos, faces, models, textures, lighting, entities_raw })
+        Ok(Bsp {
+            vertices,
+            edges,
+            surfedges,
+            texinfos,
+            faces,
+            models,
+            textures,
+            lighting,
+            entities_raw,
+        })
     }
 
     /// Build render-ready surfaces (grouped by texture) with base UVs + a packed
@@ -310,7 +344,14 @@ impl Bsp {
             .faces
             .iter()
             .enumerate()
-            .filter_map(|(i, face)| self.face_build(face, *face_model.get(i).unwrap_or(&0), valid.contains(&i), &mut packer))
+            .filter_map(|(i, face)| {
+                self.face_build(
+                    face,
+                    *face_model.get(i).unwrap_or(&0),
+                    valid.contains(&i),
+                    &mut packer,
+                )
+            })
             .collect();
 
         // ---- build the lightmap atlas image from the placements
@@ -327,7 +368,8 @@ impl Bsp {
         // entity is a separable batch (its render mode / placement applies per-model)
         let ntex = self.textures.len().max(1);
         let mut surfaces: Vec<Surface> = Vec::new();
-        let mut key_to_idx: std::collections::HashMap<(usize, usize), usize> = std::collections::HashMap::new();
+        let mut key_to_idx: std::collections::HashMap<(usize, usize), usize> =
+            std::collections::HashMap::new();
         let mut bbmin = [f32::MAX; 3];
         let mut bbmax = [f32::MIN; 3];
         let aw = ATLAS_W as f32;
@@ -342,14 +384,25 @@ impl Bsp {
             }
             let tex = fb.texture.min(ntex - 1);
             let idx = *key_to_idx.entry((fb.model, tex)).or_insert_with(|| {
-                surfaces.push(Surface { texture: tex, model: fb.model, positions: Vec::new(), uvs: Vec::new(), lightmap_uvs: Vec::new(), normals: Vec::new() });
+                surfaces.push(Surface {
+                    texture: tex,
+                    model: fb.model,
+                    positions: Vec::new(),
+                    uvs: Vec::new(),
+                    lightmap_uvs: Vec::new(),
+                    normals: Vec::new(),
+                });
                 surfaces.len() - 1
             });
             let surf = &mut surfaces[idx];
             let emit = |surf: &mut Surface, v: &[f32; 3]| {
                 surf.positions.extend_from_slice(v);
-                surf.uvs.extend_from_slice(&[(dot(v, &fb.s) + fb.s_off) / fb.tw, (dot(v, &fb.t) + fb.t_off) / fb.th]);
-                surf.lightmap_uvs.extend_from_slice(&fb.lightmap_uv(v, aw, ah));
+                surf.uvs.extend_from_slice(&[
+                    (dot(v, &fb.s) + fb.s_off) / fb.tw,
+                    (dot(v, &fb.t) + fb.t_off) / fb.th,
+                ]);
+                surf.lightmap_uvs
+                    .extend_from_slice(&fb.lightmap_uv(v, aw, ah));
                 surf.normals.extend_from_slice(&fb.normal);
             };
             for k in 1..fb.poly.len() - 1 {
@@ -363,7 +416,12 @@ impl Bsp {
         let textures = self
             .textures
             .iter()
-            .map(|t| BspTexture { name: t.name.clone(), width: t.width, height: t.height, embedded: t.rgba.is_some() })
+            .map(|t| BspTexture {
+                name: t.name.clone(),
+                width: t.width,
+                height: t.height,
+                embedded: t.rgba.is_some(),
+            })
             .collect();
         if bbmin[0] > bbmax[0] {
             bbmin = [0.0; 3];
@@ -373,7 +431,11 @@ impl Bsp {
             surfaces,
             textures,
             entities: parse_entities(&self.entities_raw),
-            lightmap: Rgba { width: ATLAS_W as u32, height: atlas_h as u32, pixels: atlas },
+            lightmap: Rgba {
+                width: ATLAS_W as u32,
+                height: atlas_h as u32,
+                pixels: atlas,
+            },
             bbox_min: bbmin,
             bbox_max: bbmax,
         }
@@ -381,7 +443,13 @@ impl Bsp {
 
     /// Build a face's polygon + texture refs + lightmap placement (packing into
     /// `packer`). Returns None for degenerate faces.
-    fn face_build(&self, face: &FaceT, model: usize, lit_allowed: bool, packer: &mut Packer) -> Option<FaceBuild> {
+    fn face_build(
+        &self,
+        face: &FaceT,
+        model: usize,
+        lit_allowed: bool,
+        packer: &mut Packer,
+    ) -> Option<FaceBuild> {
         let ti = self.texinfos.get(face.texinfo)?;
         let (tw, th) = self
             .textures
@@ -392,7 +460,10 @@ impl Bsp {
         let mut poly: Vec<[f32; 3]> = Vec::with_capacity(face.num_edges);
         for k in 0..face.num_edges {
             let se = *self.surfedges.get(face.first_edge + k).unwrap_or(&0);
-            let (a, b) = *self.edges.get(se.unsigned_abs() as usize).unwrap_or(&(0, 0));
+            let (a, b) = *self
+                .edges
+                .get(se.unsigned_abs() as usize)
+                .unwrap_or(&(0, 0));
             let vi = if se >= 0 { a } else { b } as usize;
             poly.push(*self.vertices.get(vi).unwrap_or(&[0.0; 3]));
         }
@@ -408,12 +479,32 @@ impl Bsp {
         let lm = if lit_allowed {
             let (w, h) = (lm_w as usize, lm_h as usize);
             let (x, y) = packer.place(w, h);
-            Some(LightMap { x, y, w, h, off: face.lightofs as usize, mid_poly_u: (min_s + max_s) / 2.0, mid_poly_v: (min_t + max_t) / 2.0 })
+            Some(LightMap {
+                x,
+                y,
+                w,
+                h,
+                off: face.lightofs as usize,
+                mid_poly_u: (min_s + max_s) / 2.0,
+                mid_poly_v: (min_t + max_t) / 2.0,
+            })
         } else {
             None
         };
 
-        Some(FaceBuild { poly, normal, model, texture: ti.texture, tw, th, s: ti.s, s_off: ti.s_off, t: ti.t, t_off: ti.t_off, lm })
+        Some(FaceBuild {
+            poly,
+            normal,
+            model,
+            texture: ti.texture,
+            tw,
+            th,
+            s: ti.s,
+            s_off: ti.s_off,
+            t: ti.t,
+            t_off: ti.t_off,
+            lm,
+        })
     }
 
     /// Map each face index → the brush model that owns it (models partition the
@@ -438,7 +529,9 @@ impl Bsp {
                 let sy = py.min(lm.h - 1);
                 let src = lm.off + (sy * lm.w + sx) * 3;
                 let dst = ((lm.y + py) * ATLAS_W + (lm.x + px)) * 4;
-                if let (Some(s), Some(d)) = (self.lighting.get(src..src + 3), atlas.get_mut(dst..dst + 4)) {
+                if let (Some(s), Some(d)) =
+                    (self.lighting.get(src..src + 3), atlas.get_mut(dst..dst + 4))
+                {
                     d[0] = s[0];
                     d[1] = s[1];
                     d[2] = s[2];
@@ -467,8 +560,16 @@ impl Bsp {
             let mut poly = Vec::with_capacity(face.num_edges);
             for k in 0..face.num_edges {
                 let se = *self.surfedges.get(face.first_edge + k).unwrap_or(&0);
-                let (a, b) = *self.edges.get(se.unsigned_abs() as usize).unwrap_or(&(0, 0));
-                poly.push(*self.vertices.get(if se >= 0 { a } else { b } as usize).unwrap_or(&[0.0; 3]));
+                let (a, b) = *self
+                    .edges
+                    .get(se.unsigned_abs() as usize)
+                    .unwrap_or(&(0, 0));
+                poly.push(
+                    *self
+                        .vertices
+                        .get(if se >= 0 { a } else { b } as usize)
+                        .unwrap_or(&[0.0; 3]),
+                );
             }
             if poly.len() < 3 {
                 continue;
@@ -497,7 +598,11 @@ impl Bsp {
     pub fn texture_rgba(&self, index: usize) -> Option<Rgba> {
         let t = self.textures.get(index)?;
         let rgba = t.rgba.as_ref()?;
-        Some(Rgba { width: t.width, height: t.height, pixels: rgba.clone() })
+        Some(Rgba {
+            width: t.width,
+            height: t.height,
+            pixels: rgba.clone(),
+        })
     }
 }
 
@@ -509,7 +614,12 @@ fn parse_textures(lump: &[u8]) -> Vec<MipTexT> {
     for i in 0..n {
         let off = i32_at(lump, 4 + i * 4);
         if off < 0 {
-            out.push(MipTexT { name: String::new(), width: 0, height: 0, rgba: None });
+            out.push(MipTexT {
+                name: String::new(),
+                width: 0,
+                height: 0,
+                rgba: None,
+            });
             continue;
         }
         let mt = lump.get(off as usize..).unwrap_or(&[]);
@@ -523,7 +633,12 @@ fn parse_textures(lump: &[u8]) -> Vec<MipTexT> {
         } else {
             None // external; resolved from a WAD later
         };
-        out.push(MipTexT { name, width, height, rgba });
+        out.push(MipTexT {
+            name,
+            width,
+            height,
+            rgba,
+        });
     }
     out
 }
@@ -597,7 +712,11 @@ fn face_normal(poly: &[[f32; 3]]) -> [f32; 3] {
     let (a, b, c) = (poly[0], poly[1], poly[2]);
     let u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
     let v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-    let n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    let n = [
+        u[1] * v[2] - u[2] * v[1],
+        u[2] * v[0] - u[0] * v[2],
+        u[0] * v[1] - u[1] * v[0],
+    ];
     let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
     if len > 1e-6 {
         [n[0] / len, n[1] / len, n[2] / len]

@@ -95,8 +95,16 @@ pub fn decode_sprite(bytes: &[u8]) -> Result<SpriteData> {
         width: maxwidth,
         height: maxheight,
         num_frames: frames.len() as u32,
-        type_name: TYPE_NAMES.get(type_ as usize).copied().unwrap_or("unknown").into(),
-        format_name: FORMAT_NAMES.get(fmt as usize).copied().unwrap_or("unknown").into(),
+        type_name: TYPE_NAMES
+            .get(type_ as usize)
+            .copied()
+            .unwrap_or("unknown")
+            .into(),
+        format_name: FORMAT_NAMES
+            .get(fmt as usize)
+            .copied()
+            .unwrap_or("unknown")
+            .into(),
         beam_length,
         frames,
     })

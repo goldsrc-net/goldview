@@ -31,7 +31,8 @@ fn read_palette(data: &[u8], count_off: usize) -> Result<&[u8]> {
     let count = rd_u16(data, count_off).unwrap_or(256) as usize;
     let pal_off = count_off + 2;
     let pal_end = (pal_off + count * 3).min(data.len());
-    data.get(pal_off..pal_end).ok_or_else(|| anyhow!("palette out of range"))
+    data.get(pal_off..pal_end)
+        .ok_or_else(|| anyhow!("palette out of range"))
 }
 
 /// `transparent` (names beginning `{`) → colour-key on index 255, else opaque.
@@ -71,7 +72,13 @@ pub fn decode_miptex(data: &[u8]) -> Result<Rgba> {
     let mip3_len = ((width / 8).max(1) as usize) * ((height / 8).max(1) as usize);
     let palette = read_palette(data, off3 + mip3_len)?;
 
-    Ok(palettize(indices, palette, width, height, mode(name.starts_with('{'))))
+    Ok(palettize(
+        indices,
+        palette,
+        width,
+        height,
+        mode(name.starts_with('{')),
+    ))
 }
 
 /// Decode a qpic lump: `u32 width, u32 height, [w*h indices], u16 count, palette`.
@@ -82,9 +89,17 @@ pub fn decode_qpic(data: &[u8]) -> Result<Rgba> {
         return Err(anyhow!("bad qpic size {width}x{height}"));
     }
     let npix = (width as usize) * (height as usize);
-    let indices = data.get(8..8 + npix).ok_or_else(|| anyhow!("qpic pixels out of range"))?;
+    let indices = data
+        .get(8..8 + npix)
+        .ok_or_else(|| anyhow!("qpic pixels out of range"))?;
     let palette = read_palette(data, 8 + npix)?;
-    Ok(palettize(indices, palette, width, height, PaletteMode::Opaque))
+    Ok(palettize(
+        indices,
+        palette,
+        width,
+        height,
+        PaletteMode::Opaque,
+    ))
 }
 
 /// Fixed glyph-sheet width for HL `qfont` lumps.
@@ -114,5 +129,11 @@ pub fn decode_qfont(data: &[u8]) -> Result<Rgba> {
         .get(pal_off..pal_off + 768)
         .ok_or_else(|| anyhow!("qfont palette out of range"))?;
     // index 0 is the transparent background
-    Ok(palettize(indices, palette, width, height, PaletteMode::ColorKey0))
+    Ok(palettize(
+        indices,
+        palette,
+        width,
+        height,
+        PaletteMode::ColorKey0,
+    ))
 }

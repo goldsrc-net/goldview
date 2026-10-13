@@ -13,13 +13,19 @@ const MAX_CONTROLLERS: usize = 6;
 // Offsets come from the file, so a malformed model can produce out-of-range
 // reads; these saturate to 0/empty rather than panic (parsers never crash).
 fn i32_at(b: &[u8], o: usize) -> i32 {
-    b.get(o..o + 4).map(|s| i32::from_le_bytes([s[0], s[1], s[2], s[3]])).unwrap_or(0)
+    b.get(o..o + 4)
+        .map(|s| i32::from_le_bytes([s[0], s[1], s[2], s[3]]))
+        .unwrap_or(0)
 }
 fn f32_at(b: &[u8], o: usize) -> f32 {
-    b.get(o..o + 4).map(|s| f32::from_le_bytes([s[0], s[1], s[2], s[3]])).unwrap_or(0.0)
+    b.get(o..o + 4)
+        .map(|s| f32::from_le_bytes([s[0], s[1], s[2], s[3]]))
+        .unwrap_or(0.0)
 }
 fn i16_at(b: &[u8], o: usize) -> i16 {
-    b.get(o..o + 2).map(|s| i16::from_le_bytes([s[0], s[1]])).unwrap_or(0)
+    b.get(o..o + 2)
+        .map(|s| i16::from_le_bytes([s[0], s[1]]))
+        .unwrap_or(0)
 }
 fn vec3_at(b: &[u8], o: usize) -> [f32; 3] {
     [f32_at(b, o), f32_at(b, o + 4), f32_at(b, o + 8)]
@@ -204,7 +210,12 @@ impl Model {
                 value[k] = f32_at(&bytes, o + 64 + k * 4);
                 scale[k] = f32_at(&bytes, o + 88 + k * 4);
             }
-            bones.push(Bone { name: bname, parent, value, scale });
+            bones.push(Bone {
+                name: bname,
+                parent,
+                value,
+                scale,
+            });
         }
 
         // textures: mstudiotexture_t = name[64], flags(64), width(68), height(72),
@@ -218,7 +229,13 @@ impl Model {
             let height = i32_at(&bytes, o + 72).max(0) as u32;
             let data_off = i32_at(&bytes, o + 76) as usize;
             let rgba = decode_texture(&bytes, data_off, width, height, flags & NF_MASKED != 0);
-            textures.push(TextureT { name: tname, flags, width, height, rgba });
+            textures.push(TextureT {
+                name: tname,
+                flags,
+                width,
+                height,
+                rgba,
+            });
         }
 
         // skin families: num_skin_families * num_skin_ref shorts
@@ -227,7 +244,11 @@ impl Model {
             let mut fam = Vec::with_capacity(num_skin_ref);
             for s in 0..num_skin_ref {
                 let o = skin_index + (f * num_skin_ref + s) * 2;
-                fam.push(if o + 1 < bytes.len() { i16_at(&bytes, o) as u16 } else { 0 });
+                fam.push(if o + 1 < bytes.len() {
+                    i16_at(&bytes, o) as u16
+                } else {
+                    0
+                });
             }
             skins.push(fam);
         }
@@ -254,19 +275,32 @@ impl Model {
                 for v in 0..num_verts {
                     verts.push(vec3_at(&bytes, vert_index + v * 12));
                 }
-                let vert_bone =
-                    bytes.get(vert_info_index..vert_info_index + num_verts).map(|s| s.to_vec()).unwrap_or_default();
+                let vert_bone = bytes
+                    .get(vert_info_index..vert_info_index + num_verts)
+                    .map(|s| s.to_vec())
+                    .unwrap_or_default();
 
                 let mut meshes = Vec::with_capacity(num_mesh);
                 for me in 0..num_mesh {
                     let meo = mesh_index + me * 20;
                     let tri_index = i32_at(&bytes, meo + 4) as usize;
                     let skin_ref = i32_at(&bytes, meo + 8).max(0) as usize;
-                    meshes.push(MeshT { tris_off: tri_index, skin_ref });
+                    meshes.push(MeshT {
+                        tris_off: tri_index,
+                        skin_ref,
+                    });
                 }
-                models.push(ModelT { name: mname, verts, vert_bone, meshes });
+                models.push(ModelT {
+                    name: mname,
+                    verts,
+                    vert_bone,
+                    meshes,
+                });
             }
-            body_parts.push(BodyPartT { name: bp_name, models });
+            body_parts.push(BodyPartT {
+                name: bp_name,
+                models,
+            });
         }
 
         // sequences: mstudioseqdesc_t = label[32], fps(32), ... numFrames(56),
@@ -395,7 +429,12 @@ impl Model {
                     .unwrap_or((1.0, 1.0));
                 let (positions, uvs, skin_index) =
                     self.read_faces(mesh.tris_off, &posed, &model.vert_bone, tw, th);
-                submeshes.push(SubMesh { texture: tex_idx, positions, uvs, skin_index });
+                submeshes.push(SubMesh {
+                    texture: tex_idx,
+                    positions,
+                    uvs,
+                    skin_index,
+                });
             }
             parts.push(PartData {
                 name: bp.name.clone(),
@@ -420,13 +459,22 @@ impl Model {
             textures: self
                 .textures
                 .iter()
-                .map(|t| ModelTexture { name: t.name.clone(), flags: t.flags, width: t.width, height: t.height })
+                .map(|t| ModelTexture {
+                    name: t.name.clone(),
+                    flags: t.flags,
+                    width: t.width,
+                    height: t.height,
+                })
                 .collect(),
             num_skin_families: self.skins.len().max(1),
             sequences: self
                 .sequences
                 .iter()
-                .map(|s| SeqMeta { name: s.name.clone(), fps: s.fps, num_frames: s.num_frames })
+                .map(|s| SeqMeta {
+                    name: s.name.clone(),
+                    fps: s.fps,
+                    num_frames: s.num_frames,
+                })
                 .collect(),
             attachments: self.attachments.clone(),
             hitboxes: self.hitboxes.clone(),
@@ -541,7 +589,11 @@ impl Model {
                 }
             } else {
                 for i in 0..series.len().saturating_sub(2) {
-                    let (a, b2, c) = if i % 2 == 0 { (i, i + 1, i + 2) } else { (i + 1, i, i + 2) };
+                    let (a, b2, c) = if i % 2 == 0 {
+                        (i, i + 1, i + 2)
+                    } else {
+                        (i + 1, i, i + 2)
+                    };
                     push(&mut positions, &mut uvs, &mut skin_index, &series[a]);
                     push(&mut positions, &mut uvs, &mut skin_index, &series[b2]);
                     push(&mut positions, &mut uvs, &mut skin_index, &series[c]);
@@ -587,7 +639,11 @@ fn decode_texture(b: &[u8], off: usize, w: u32, h: u32, masked: bool) -> Vec<u8>
     }
     let indices = &b[off..off + n];
     let pal = &b[pal_off..pal_off + 768];
-    let mode = if masked { PaletteMode::ColorKey } else { PaletteMode::Opaque };
+    let mode = if masked {
+        PaletteMode::ColorKey
+    } else {
+        PaletteMode::Opaque
+    };
     palettize(indices, pal, w, h, mode).pixels
 }
 
@@ -623,14 +679,20 @@ fn anim_delta(data: &[u8], anim_off: usize, channel: usize, frame: usize) -> Opt
         }
     }
     let valid = *data.get(base + i * 2)? as i32;
-    let vi = if valid > k { i + 1 + k as usize } else { i + valid as usize };
+    let vi = if valid > k {
+        i + 1 + k as usize
+    } else {
+        i + valid as usize
+    };
     let lo = *data.get(base + vi * 2)?;
     let hi = *data.get(base + vi * 2 + 1)?;
     Some(i16::from_le_bytes([lo, hi]) as f32)
 }
 
 // ---------- minimal column-major mat4 / quat math ----------
-const IDENTITY: [f32; 16] = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0];
+const IDENTITY: [f32; 16] = [
+    1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+];
 
 /// studiomodel Euler→quat (matches web-hlmv anglesToQuaternion).
 fn angles_to_quat(a: [f32; 3]) -> [f32; 4] {
@@ -654,10 +716,22 @@ fn mat4_from_quat(q: [f32; 4]) -> [f32; 16] {
     let (yy, yz, zz) = (y * y2, y * z2, z * z2);
     let (wx, wy, wz) = (w * x2, w * y2, w * z2);
     [
-        1.0 - (yy + zz), xy + wz, xz - wy, 0.0,
-        xy - wz, 1.0 - (xx + zz), yz + wx, 0.0,
-        xz + wy, yz - wx, 1.0 - (xx + yy), 0.0,
-        0.0, 0.0, 0.0, 1.0,
+        1.0 - (yy + zz),
+        xy + wz,
+        xz - wy,
+        0.0,
+        xy - wz,
+        1.0 - (xx + zz),
+        yz + wx,
+        0.0,
+        xz + wy,
+        yz - wx,
+        1.0 - (xx + yy),
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
     ]
 }
 

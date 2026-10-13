@@ -31,7 +31,7 @@ pub fn palettize(indices: &[u8], palette: &[u8], w: u32, h: u32, mode: PaletteMo
         }
         match mode {
             PaletteMode::ColorKey if idx == 255 => continue, // colour-key: leave transparent
-            PaletteMode::ColorKey0 if idx == 0 => continue, // font background: leave transparent
+            PaletteMode::ColorKey0 if idx == 0 => continue,  // font background: leave transparent
             PaletteMode::IndexAlpha => {
                 if last + 2 < palette.len() {
                     out.pixels[o..o + 3].copy_from_slice(&palette[last..last + 3]);

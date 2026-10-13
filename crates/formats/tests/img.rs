@@ -33,7 +33,11 @@ fn wav_header() {
     assert_eq!(info.channels, 2);
     assert_eq!(info.sample_rate, 44100);
     assert_eq!(info.bits_per_sample, 16);
-    assert!((info.duration_secs - 1.0).abs() < 0.01, "duration={}", info.duration_secs);
+    assert!(
+        (info.duration_secs - 1.0).abs() < 0.01,
+        "duration={}",
+        info.duration_secs
+    );
 }
 
 #[test]

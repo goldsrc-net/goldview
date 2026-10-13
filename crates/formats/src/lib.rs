@@ -29,6 +29,10 @@ pub struct Rgba {
 
 impl Rgba {
     pub fn new(width: u32, height: u32) -> Self {
-        Rgba { width, height, pixels: vec![0; (width as usize) * (height as usize) * 4] }
+        Rgba {
+            width,
+            height,
+            pixels: vec![0; (width as usize) * (height as usize) * 4],
+        }
     }
 }

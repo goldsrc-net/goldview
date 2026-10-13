@@ -88,7 +88,11 @@ impl Mod {
         }
 
         let mut roots = vec![dir.clone()];
-        let mut names = vec![dir.file_name().unwrap_or_default().to_string_lossy().into_owned()];
+        let mut names = vec![dir
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned()];
 
         // fallback chain is resolved against the parent game directory (siblings)
         if let Some(parent) = dir.parent() {
@@ -175,7 +179,11 @@ impl Mod {
         };
 
         for (idx, root) in self.roots.iter().enumerate() {
-            let name = self.names.get(idx).cloned().unwrap_or_else(|| format!("root{idx}"));
+            let name = self
+                .names
+                .get(idx)
+                .cloned()
+                .unwrap_or_else(|| format!("root{idx}"));
             // walk THIS root only (so the folders aren't intermixed)
             let mut files: BTreeMap<String, (u64, usize)> = BTreeMap::new();
             let mut dirs: BTreeMap<String, ()> = BTreeMap::new();
@@ -195,7 +203,10 @@ impl Mod {
                 insert(&mut sub, d, None);
             }
             for (path, (size, src)) in &files {
-                let ext = Path::new(path).extension().and_then(|e| e.to_str()).unwrap_or("");
+                let ext = Path::new(path)
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("");
                 insert(&mut sub, path, Some((*size, *src, Category::from_ext(ext))));
             }
             sort_tree(&mut sub);
@@ -239,10 +250,12 @@ fn resolve_ci(root: &Path, rel: &Path) -> Option<PathBuf> {
     let mut cur = root.to_path_buf();
     for comp in rel.components() {
         let want = comp.as_os_str().to_str()?;
-        let hit = std::fs::read_dir(&cur)
-            .ok()?
-            .flatten()
-            .find(|e| e.file_name().to_str().map(|n| n.eq_ignore_ascii_case(want)).unwrap_or(false))?;
+        let hit = std::fs::read_dir(&cur).ok()?.flatten().find(|e| {
+            e.file_name()
+                .to_str()
+                .map(|n| n.eq_ignore_ascii_case(want))
+                .unwrap_or(false)
+        })?;
         cur = hit.path();
     }
     Some(cur)
@@ -351,9 +364,11 @@ fn insert(root: &mut Node, path: &str, file: Option<(u64, usize, Category)>) {
 fn sort_tree(node: &mut Node) {
     node.children.sort_by(|a, b| {
         // directories first, then by name (case-insensitive)
-        b.is_dir
-            .cmp(&a.is_dir)
-            .then_with(|| a.name.to_ascii_lowercase().cmp(&b.name.to_ascii_lowercase()))
+        b.is_dir.cmp(&a.is_dir).then_with(|| {
+            a.name
+                .to_ascii_lowercase()
+                .cmp(&b.name.to_ascii_lowercase())
+        })
     });
     for c in &mut node.children {
         sort_tree(c);

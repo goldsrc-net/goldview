@@ -1,7 +1,9 @@
 use gv_formats::wad::Wad;
 
 fn dist(rel: &str) -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../xash3d-fwgs/dist/client-x64").join(rel)
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../xash3d-fwgs/dist/client-x64")
+        .join(rel)
 }
 
 #[test]

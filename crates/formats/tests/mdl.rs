@@ -80,11 +80,26 @@ fn bodypart_selection_changes_geometry() {
 
     let part0 = &model.build(0, &[0]).parts[0];
     let part1 = &model.build(0, &[1]).parts[0];
-    assert!(part0.model_names.len() >= 2, "gordon body part should expose ≥2 submodels, got {:?}", part0.model_names);
+    assert!(
+        part0.model_names.len() >= 2,
+        "gordon body part should expose ≥2 submodels, got {:?}",
+        part0.model_names
+    );
 
-    let verts = |p: &gv_formats::mdl::PartData| -> usize { p.submeshes.iter().map(|s| s.positions.len() / 3).sum() };
-    eprintln!("submodel0={} verts, submodel1={} verts ({:?})", verts(part0), verts(part1), part0.model_names);
-    assert_ne!(verts(part0), verts(part1), "selecting submodel 1 must change geometry vs submodel 0");
+    let verts = |p: &gv_formats::mdl::PartData| -> usize {
+        p.submeshes.iter().map(|s| s.positions.len() / 3).sum()
+    };
+    eprintln!(
+        "submodel0={} verts, submodel1={} verts ({:?})",
+        verts(part0),
+        verts(part1),
+        part0.model_names
+    );
+    assert_ne!(
+        verts(part0),
+        verts(part1),
+        "selecting submodel 1 must change geometry vs submodel 0"
+    );
 }
 
 #[test]
@@ -100,7 +115,11 @@ fn parse_bsp_geometry() {
     let tris: usize = data.surfaces.iter().map(|s| s.positions.len() / 9).sum();
     assert!(tris > 1000, "expected map geometry, got {tris} tris");
     assert!(!data.textures.is_empty());
-    assert!(data.entities.iter().any(|e| e.keys.get("classname").map(|c| c == "worldspawn").unwrap_or(false)));
+    assert!(data.entities.iter().any(|e| e
+        .keys
+        .get("classname")
+        .map(|c| c == "worldspawn")
+        .unwrap_or(false)));
     for s in &data.surfaces {
         assert_eq!(s.positions.len() % 9, 0); // whole triangles
         assert_eq!(s.positions.len() / 3, s.uvs.len() / 2);

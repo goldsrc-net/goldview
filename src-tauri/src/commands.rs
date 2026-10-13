@@ -29,7 +29,9 @@ fn ext_of(path: &str) -> &str {
 /// it isn't a `.mdl`. The base for sibling lookups (`<stem>t.mdl`, `<stem>NN.mdl`).
 fn mdl_stem(path: &str) -> Option<&str> {
     let cut = path.len().checked_sub(4)?;
-    path[cut..].eq_ignore_ascii_case(".mdl").then(|| &path[..cut])
+    path[cut..]
+        .eq_ignore_ascii_case(".mdl")
+        .then(|| &path[..cut])
 }
 
 /// Parse a studiomodel, pulling in external textures from the sibling
@@ -173,13 +175,19 @@ pub fn load_model(
 #[tauri::command]
 pub fn model_texture(state: State<AppState>, path: String, index: usize) -> CmdResult<Rgba> {
     let model = parse_model_with_textures(&state, &path)?;
-    model.texture_rgba(index).ok_or_else(|| format!("no texture {index}"))
+    model
+        .texture_rgba(index)
+        .ok_or_else(|| format!("no texture {index}"))
 }
 
 /// Decode a sequence's animation → per-frame, per-bone [pos3, quat4] local
 /// transforms. Loads the external `<name>NN.mdl` group file when needed.
 #[tauri::command]
-pub fn load_animation(state: State<AppState>, path: String, seq: usize) -> CmdResult<Vec<Vec<[f32; 7]>>> {
+pub fn load_animation(
+    state: State<AppState>,
+    path: String,
+    seq: usize,
+) -> CmdResult<Vec<Vec<[f32; 7]>>> {
     let bytes = read_bytes(&state, &path)?;
     let model = Model::parse(bytes).map_err(err)?;
     let group = model.sequence_group(seq);
@@ -201,11 +209,23 @@ pub fn reveal_path(state: State<AppState>, path: String) -> CmdResult<()> {
     let abs = if path.is_empty() {
         m.roots.first().cloned().ok_or("no root")?
     } else {
-        m.resolve(&path).ok_or_else(|| format!("not found: {path}"))?
+        m.resolve(&path)
+            .ok_or_else(|| format!("not found: {path}"))?
     };
-    let target = if abs.is_dir() { abs.as_path() } else { abs.parent().unwrap_or(&abs) };
-    let opener = if cfg!(windows) { "explorer" } else { "xdg-open" };
-    std::process::Command::new(opener).arg(target).spawn().map_err(err)?;
+    let target = if abs.is_dir() {
+        abs.as_path()
+    } else {
+        abs.parent().unwrap_or(&abs)
+    };
+    let opener = if cfg!(windows) {
+        "explorer"
+    } else {
+        "xdg-open"
+    };
+    std::process::Command::new(opener)
+        .arg(target)
+        .spawn()
+        .map_err(err)?;
     Ok(())
 }
 
@@ -229,7 +249,12 @@ fn resolve_bsp_textures(state: &State<AppState>, bsp: &Bsp, data: &BspData) -> V
     let wad_key = data
         .entities
         .iter()
-        .find(|e| e.keys.get("classname").map(|c| c == "worldspawn").unwrap_or(false))
+        .find(|e| {
+            e.keys
+                .get("classname")
+                .map(|c| c == "worldspawn")
+                .unwrap_or(false)
+        })
         .and_then(|e| e.keys.get("wad"))
         .cloned()
         .unwrap_or_default();
@@ -238,7 +263,9 @@ fn resolve_bsp_textures(state: &State<AppState>, bsp: &Bsp, data: &BspData) -> V
         .filter(|s| !s.is_empty())
         .filter_map(|p| {
             let base = p.rsplit(['\\', '/']).next().unwrap_or(p); // strip the (windows) path
-            read_bytes(state, base).ok().and_then(|b| Wad::parse(b).ok())
+            read_bytes(state, base)
+                .ok()
+                .and_then(|b| Wad::parse(b).ok())
         })
         .collect();
     data.textures
@@ -259,9 +286,11 @@ fn resolve_bsp_textures(state: &State<AppState>, bsp: &Bsp, data: &BspData) -> V
 pub fn bsp_texture(state: State<AppState>, path: String, index: usize) -> CmdResult<Rgba> {
     let guard = state.bsp_textures.lock().unwrap();
     match guard.as_ref() {
-        Some((p, texs)) if *p == path => {
-            texs.get(index).cloned().flatten().ok_or_else(|| format!("no bsp texture {index}"))
-        }
+        Some((p, texs)) if *p == path => texs
+            .get(index)
+            .cloned()
+            .flatten()
+            .ok_or_else(|| format!("no bsp texture {index}")),
         _ => Err("bsp not loaded".into()),
     }
 }

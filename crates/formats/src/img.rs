@@ -24,7 +24,11 @@ fn load_dynamic(bytes: &[u8], ext: &str) -> Result<image::DynamicImage> {
 }
 
 fn to_rgba(img: image::RgbaImage) -> Rgba {
-    Rgba { width: img.width(), height: img.height(), pixels: img.into_raw() }
+    Rgba {
+        width: img.width(),
+        height: img.height(),
+        pixels: img.into_raw(),
+    }
 }
 
 /// Decode TGA / BMP / PNG bytes into top-down RGBA8.
@@ -51,8 +55,14 @@ pub fn downscale(src: &Rgba, max: u32) -> Rgba {
         Some(i) => i,
         None => return src.clone(),
     };
-    let t = DynamicImage::ImageRgba8(img).thumbnail(max.max(1), max.max(1)).to_rgba8();
-    Rgba { width: t.width(), height: t.height(), pixels: t.into_raw() }
+    let t = DynamicImage::ImageRgba8(img)
+        .thumbnail(max.max(1), max.max(1))
+        .to_rgba8();
+    Rgba {
+        width: t.width(),
+        height: t.height(),
+        pixels: t.into_raw(),
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -125,5 +135,11 @@ pub fn wav_info(bytes: &[u8]) -> Result<WavInfo> {
         0.0
     };
 
-    Ok(WavInfo { channels, sample_rate, bits_per_sample: bits, duration_secs, bytes: bytes.len() })
+    Ok(WavInfo {
+        channels,
+        sample_rate,
+        bits_per_sample: bits,
+        duration_secs,
+        bytes: bytes.len(),
+    })
 }

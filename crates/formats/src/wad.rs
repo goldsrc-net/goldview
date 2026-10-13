@@ -41,7 +41,10 @@ impl Wad {
     pub fn parse(bytes: Vec<u8>) -> Result<Wad> {
         let magic = bytes.get(0..4).ok_or_else(|| anyhow!("not a WAD"))?;
         if magic != b"WAD3" && magic != b"WAD2" {
-            return Err(anyhow!("bad WAD magic {:?}", String::from_utf8_lossy(magic)));
+            return Err(anyhow!(
+                "bad WAD magic {:?}",
+                String::from_utf8_lossy(magic)
+            ));
         }
         let count = rd_i32(&bytes, 4)?.max(0) as usize;
         let dir_off = rd_i32(&bytes, 8)?.max(0) as usize;
@@ -53,10 +56,18 @@ impl Wad {
             let e = dir_off + i * 32;
             let pos = rd_i32(&bytes, e)?.max(0) as usize;
             let size = rd_i32(&bytes, e + 8)?.max(0) as usize; // nSize (uncompressed)
-            let kind = *bytes.get(e + 12).ok_or_else(|| anyhow!("short dir entry"))?;
+            let kind = *bytes
+                .get(e + 12)
+                .ok_or_else(|| anyhow!("short dir entry"))?;
             let compression = *bytes.get(e + 13).unwrap_or(&0);
             let name = miptex::cstr(bytes.get(e + 16..e + 32).unwrap_or(&[]));
-            dir.push(DirEntry { pos, size, kind, compression, name });
+            dir.push(DirEntry {
+                pos,
+                size,
+                kind,
+                compression,
+                name,
+            });
         }
         Ok(Wad { bytes, dir })
     }
@@ -67,14 +78,27 @@ impl Wad {
             .iter()
             .map(|e| {
                 let data = self.bytes.get(e.pos..e.pos + e.size).unwrap_or(&[]);
-                let rd = |o: usize| u32::from_le_bytes(data.get(o..o + 4).map(|s| [s[0], s[1], s[2], s[3]]).unwrap_or_default());
+                let rd = |o: usize| {
+                    u32::from_le_bytes(
+                        data.get(o..o + 4)
+                            .map(|s| [s[0], s[1], s[2], s[3]])
+                            .unwrap_or_default(),
+                    )
+                };
                 let (width, height) = match e.kind {
-                    TYPE_MIPTEX => miptex::miptex_dimensions(data).map(|(_, w, h)| (w, h)).unwrap_or((0, 0)),
+                    TYPE_MIPTEX => miptex::miptex_dimensions(data)
+                        .map(|(_, w, h)| (w, h))
+                        .unwrap_or((0, 0)),
                     TYPE_QPIC => (rd(0), rd(4)),
                     TYPE_QFONT => (miptex::QFONT_WIDTH, miptex::qfont_height(data)),
                     _ => (0, 0),
                 };
-                WadTexture { name: e.name.clone(), kind: e.kind, width, height }
+                WadTexture {
+                    name: e.name.clone(),
+                    kind: e.kind,
+                    width,
+                    height,
+                }
             })
             .collect()
     }

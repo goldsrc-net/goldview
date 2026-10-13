@@ -10,10 +10,18 @@ use tauri::{
     Manager, UriSchemeResponder,
 };
 
-pub fn handle(ctx: tauri::UriSchemeContext<tauri::Wry>, request: Request<Vec<u8>>, responder: UriSchemeResponder) {
+pub fn handle(
+    ctx: tauri::UriSchemeContext<tauri::Wry>,
+    request: Request<Vec<u8>>,
+    responder: UriSchemeResponder,
+) {
     let app = ctx.app_handle().clone();
     let rel = decode_path(request.uri().path());
-    let range = request.headers().get("range").and_then(|v| v.to_str().ok()).map(str::to_owned);
+    let range = request
+        .headers()
+        .get("range")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
 
     let body: Result<(Vec<u8>, &'static str), String> = (|| {
         let state = app.state::<AppState>();
@@ -74,7 +82,11 @@ fn parse_range(header: &str, total: usize) -> Option<(usize, usize)> {
         return None; // suffix range (bytes=-N) — uncommon for our media; serve full
     }
     let start: usize = s.parse().ok()?;
-    let end: usize = if e.is_empty() { total.saturating_sub(1) } else { e.parse().ok()? };
+    let end: usize = if e.is_empty() {
+        total.saturating_sub(1)
+    } else {
+        e.parse().ok()?
+    };
     if total == 0 || start > end || start >= total {
         return None;
     }
