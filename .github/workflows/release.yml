@@ -1,0 +1,58 @@
+name: Release
+
+# Push a version tag to cut a GitHub release:
+#   git tag v0.1.0 && git push origin v0.1.0
+# The tag has to match the workspace version in Cargo.toml, which is what the
+# binaries report and what release.sh puts in the file names. This runs the CI
+# checks on the tagged commit, builds with release.sh and attaches the two
+# files: goldview-<version>-linux64 and goldview-<version>-win64.exe. A tag
+# with a "-" (v1.2.0-rc1) is marked as a prerelease.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Build and publish
+    # The oldest runner image, so the Linux binary needs the oldest glibc we can offer.
+    runs-on: ubuntu-22.04
+    needs: checks
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check the tag against Cargo.toml
+        run: |
+          want="v$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+          if [ "$GITHUB_REF_NAME" != "$want" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match the Cargo.toml version ($want)"
+            exit 1
+          fi
+
+      - name: Install the build dependencies
+        run: |
+          sudo apt-get update
+          # llvm provides llvm-rc, which embeds the icon into the Windows exe.
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev llvm
+          cargo install xwin --locked --version 0.10.0
+
+      - name: Build
+        run: ./release.sh
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          PRE=()
+          case "$TAG" in *-*) PRE=(--prerelease) ;; esac
+          gh release create "$TAG" dist/* -R "$GITHUB_REPOSITORY" "${PRE[@]}" \
+            --title "goldview $TAG" --generate-notes --verify-tag

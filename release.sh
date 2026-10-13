@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # Build the release binaries people actually get, into dist/.
 #
-#   ./release.sh [linux] [win64] [win32]      (no arguments = all three)
+#   ./release.sh [linux64] [win64]      (no arguments = both)
 #
 # Each output is one self-contained file with the frontend embedded:
-#   dist/goldview-<version>-linux-x86_64
+#   dist/goldview-<version>-linux64
 #   dist/goldview-<version>-win64.exe
-#   dist/goldview-<version>-win32.exe
 #
-# The Windows builds cross-compile from Linux against the MSVC targets, which
-# link the WebView2 loader and the C runtime statically (the mingw targets
-# need WebView2Loader.dll shipped beside the exe). That takes Microsoft's CRT
+# <version> is the workspace version in Cargo.toml. CI refuses to release a
+# tag that does not match it.
+#
+# The Windows build cross-compiles from Linux against the MSVC target, which
+# links the WebView2 loader and the C runtime statically (the mingw target
+# needs WebView2Loader.dll shipped beside the exe). That takes Microsoft's CRT
 # and SDK import libraries, fetched once by xwin (cargo install xwin) into
 # $XWIN_DIR, and rustup's bundled rust-lld as the linker. llvm-rc embeds
 # src-tauri/icons/icon.ico, which was made from icon.png with:
@@ -22,41 +24,44 @@ cd "$root"
 
 xwin_dir="${XWIN_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/xwin}"
 version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
-[ $# -gt 0 ] || set -- linux win64 win32
+[ $# -gt 0 ] || set -- linux64 win64
 
 build() { cargo build --release -p goldview --features tauri/custom-protocol "$@"; }
 
-# build_windows <rust arch> <xwin arch> <output suffix>
-build_windows() {
-  local triple="$1-pc-windows-msvc" lib="$xwin_dir/splat"
-  if [ ! -d "$lib/crt/lib/$2" ]; then
-    xwin --accept-license --arch x86,x86_64 --cache-dir "$xwin_dir/cache" \
-      splat --output "$lib"
+build_win64() {
+  local lib="$xwin_dir/splat"
+  if [ ! -d "$lib/crt/lib/x86_64" ]; then
+    xwin --accept-license --arch x86_64 --cache-dir "$xwin_dir/cache" splat --output "$lib"
   fi
-  rustup target add "$triple"
-  local var="CARGO_TARGET_${triple//-/_}_RUSTFLAGS"
-  export "${var^^}=-C linker=rust-lld -C linker-flavor=lld-link -C target-feature=+crt-static \
--Lnative=$lib/crt/lib/$2 -Lnative=$lib/sdk/lib/um/$2 -Lnative=$lib/sdk/lib/ucrt/$2"
-  build --target "$triple"
-  cp "target/$triple/release/goldview.exe" "dist/goldview-$version-$3.exe"
+  rustup target add x86_64-pc-windows-msvc
+  export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS="-C linker=rust-lld \
+-C linker-flavor=lld-link -C target-feature=+crt-static -Lnative=$lib/crt/lib/x86_64 \
+-Lnative=$lib/sdk/lib/um/x86_64 -Lnative=$lib/sdk/lib/ucrt/x86_64"
+  build --target x86_64-pc-windows-msvc
+  cp target/x86_64-pc-windows-msvc/release/goldview.exe "dist/goldview-$version-win64.exe"
 }
 
-[ -d frontend/node_modules ] || (cd frontend && npm install)
+for target in "$@"; do
+  case "$target" in
+    linux64 | win64) ;;
+    *)
+      echo "usage: $0 [linux64] [win64]" >&2
+      exit 2
+      ;;
+  esac
+done
+
+[ -d frontend/node_modules ] || (cd frontend && npm ci)
 (cd frontend && npm run build)
 mkdir -p dist
 
 for target in "$@"; do
   case "$target" in
-    linux)
+    linux64)
       build
-      cp target/release/goldview "dist/goldview-$version-linux-x86_64"
+      cp target/release/goldview "dist/goldview-$version-linux64"
       ;;
-    win64) build_windows x86_64 x86_64 win64 ;;
-    win32) build_windows i686 x86 win32 ;;
-    *)
-      echo "usage: $0 [linux] [win64] [win32]" >&2
-      exit 2
-      ;;
+    win64) build_win64 ;;
   esac
 done
 

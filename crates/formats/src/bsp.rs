@@ -513,9 +513,7 @@ impl Bsp {
         let mut fm = vec![0usize; self.faces.len()];
         for (mi, m) in self.models.iter().enumerate() {
             let end = (m.first_face + m.num_faces).min(self.faces.len());
-            for f in m.first_face.min(self.faces.len())..end {
-                fm[f] = mi;
-            }
+            fm[m.first_face.min(end)..end].fill(mi);
         }
         fm
     }

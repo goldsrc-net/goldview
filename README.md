@@ -32,11 +32,12 @@ Without it, use the "Open mod..." button.
 ## Release builds
 
 ```bash
-./release.sh [linux] [win64] [win32]   # no arguments builds all three
+./release.sh [linux64] [win64]   # no arguments builds both
 ```
 
-Each target is written to `dist/` as one self-contained file. The Windows
-builds cross-compile from Linux and need [xwin](https://github.com/Jake-Shadle/xwin)
+Each target is written to `dist/` as one self-contained file:
+`goldview-<version>-linux64` and `goldview-<version>-win64.exe`. The Windows
+build cross-compiles from Linux and needs [xwin](https://github.com/Jake-Shadle/xwin)
 (`cargo install xwin`); the script fetches the Microsoft CRT and Windows SDK
 libraries on first use. Windows users need the WebView2 runtime, which ships
 with Windows 11 and current Windows 10.

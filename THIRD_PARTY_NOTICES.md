@@ -32,7 +32,7 @@ game assets.
 
 | License | Packages |
 |---|---|
-| MIT OR Apache-2.0 | 154 |
+| MIT OR Apache-2.0 | 152 |
 | MIT | 78 |
 | Apache-2.0 OR MIT | 32 |
 | Unicode-3.0 | 18 |
@@ -65,7 +65,7 @@ game assets.
 | [solid-js](https://www.npmjs.com/package/solid-js) | 1.9.13 | MIT |
 | [three](https://www.npmjs.com/package/three) | 0.185.0 | MIT |
 
-## Rust crates, 305
+## Rust crates, 303
 
 Crates linked into the Linux and Windows release binaries.
 
@@ -358,8 +358,6 @@ Crates linked into the Linux and Windows release binaries.
 | [windows-targets](https://github.com/microsoft/windows-rs) | 0.53.5 | MIT OR Apache-2.0 |
 | [windows-threading](https://github.com/microsoft/windows-rs) | 0.1.0 | MIT OR Apache-2.0 |
 | [windows-version](https://github.com/microsoft/windows-rs) | 0.1.7 | MIT OR Apache-2.0 |
-| [windows_i686_msvc](https://github.com/microsoft/windows-rs) | 0.52.6 | MIT OR Apache-2.0 |
-| [windows_i686_msvc](https://github.com/microsoft/windows-rs) | 0.53.1 | MIT OR Apache-2.0 |
 | [windows_x86_64_msvc](https://github.com/microsoft/windows-rs) | 0.52.6 | MIT OR Apache-2.0 |
 | [windows_x86_64_msvc](https://github.com/microsoft/windows-rs) | 0.53.1 | MIT OR Apache-2.0 |
 | [winnow](https://github.com/winnow-rs/winnow) | 0.5.40 | MIT |

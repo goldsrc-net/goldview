@@ -18,7 +18,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-TARGETS = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc", "i686-pc-windows-msvc"]
+TARGETS = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 LICENSE_NAMES = ("license", "licence", "copying", "notice", "unlicense", "copyright")
 
 # Source we adapted or ported by hand. Not a dependency, so no tool finds it.
