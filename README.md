@@ -64,7 +64,8 @@ Some tests read real game files and skip quietly when those are not present.
 
 ## License
 
-**GPL-3.0-or-later**, see `LICENSE`. The BSP parser adapts
+Copyright (C) 2026 Steven Linn. Released under **GPL-3.0-or-later**: see
+`NOTICE` and `LICENSE`. The BSP parser adapts
 [r4v3n6101/hlbsp-viewer](https://github.com/r4v3n6101/hlbsp-viewer) (GPL-3.0).
 
 Everything goldview builds on is listed in `THIRD_PARTY_NOTICES.md`, with the
