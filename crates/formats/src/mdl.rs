@@ -1,8 +1,7 @@
 //! GoldSrc studiomodel (`IDST`) — parser + static (bind-pose) geometry builder.
 //!
 //! Struct layout follows the documented studiohdr_t / mstudio*_t (blueprint:
-//! ~/Projects/mdl-parser/src/const/structs.ts, reference/Lambda/src/mdl,
-//! reference/web-hlmv/lib). Phase 3 outputs render-ready geometry posed at the
+//! KarloSiric/Lambda src/mdl and danakt/web-hlmv lib). Phase 3 outputs render-ready geometry posed at the
 //! default bone values; animation (per-frame bone transforms) comes in Phase 4.
 
 use crate::Rgba;
@@ -633,7 +632,7 @@ fn anim_delta(data: &[u8], anim_off: usize, channel: usize, frame: usize) -> Opt
 // ---------- minimal column-major mat4 / quat math ----------
 const IDENTITY: [f32; 16] = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0];
 
-/// studiomodel Euler→quat (matches reference/web-hlmv anglesToQuaternion).
+/// studiomodel Euler→quat (matches web-hlmv anglesToQuaternion).
 fn angles_to_quat(a: [f32; 3]) -> [f32; 4] {
     let (pitch, roll, yaw) = (a[0], a[1], a[2]);
     let (cy, sy) = ((yaw * 0.5).cos(), (yaw * 0.5).sin());
