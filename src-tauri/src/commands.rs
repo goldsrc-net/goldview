@@ -229,6 +229,24 @@ pub fn reveal_path(state: State<AppState>, path: String) -> CmdResult<()> {
     Ok(())
 }
 
+/// goldview's own license notice, the third-party notices and every license
+/// text. Embedded so a single-file release binary carries them.
+#[tauri::command]
+pub fn licenses() -> &'static str {
+    concat!(
+        "goldview ",
+        env!("CARGO_PKG_VERSION"),
+        "\n\nLicensed under GPL-3.0-or-later. Source code: ",
+        env!("CARGO_PKG_REPOSITORY"),
+        "\nThe full GPL text is at the end of this page.\n\n\n",
+        include_str!("../../THIRD_PARTY_NOTICES.md"),
+        "\n\n",
+        include_str!("../../THIRD_PARTY_LICENSES.txt"),
+        "\n\n",
+        include_str!("../../LICENSE"),
+    )
+}
+
 /// Parse a BSP map → render-ready surfaces, textures, and entities. Resolves
 /// each texture (embedded miptex, or external from the worldspawn `wad` list)
 /// and caches the decoded RGBA for `bsp_texture`.

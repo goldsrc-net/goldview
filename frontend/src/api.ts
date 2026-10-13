@@ -83,6 +83,11 @@ export function revealPath(path: string): Promise<void> {
   return invoke<void>("reveal_path", { path });
 }
 
+/** License notice plus every third-party notice and license text. */
+export function licenses(): Promise<string> {
+  return invoke<string>("licenses");
+}
+
 /** Build a goldview:// URL for a relative resource path (raw bytes). */
 export function rawUrl(path: string): string {
   return convertFileSrc(path, "goldview");

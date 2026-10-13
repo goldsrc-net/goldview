@@ -5,6 +5,7 @@ import type { Detail, Node, OpenResult } from "./types";
 import { pickAndOpenMod, revealPath, startupMod } from "./api";
 import { TreeRow, matches, nodeOpen } from "./tree/Tree";
 import Viewer from "./viewers/Viewer";
+import Licenses from "./viewers/Licenses";
 import KV from "./viewers/KV";
 import { registry } from "./handlers/registry";
 import { fmtSize } from "./util/format";
@@ -16,6 +17,12 @@ export default function App() {
   const [open, setOpen] = createStore<Record<string, boolean>>({});
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string>("");
+  const [showLicenses, setShowLicenses] = createSignal(false);
+  // picking anything in the tree returns to the viewer
+  createEffect(() => {
+    selected();
+    setShowLicenses(false);
+  });
 
   const openSet = () => new Set(Object.keys(open).filter((k) => open[k]));
 
@@ -198,6 +205,7 @@ export default function App() {
         <button onClick={doOpen} disabled={busy()}>
           {busy() ? "Opening…" : "Open mod…"}
         </button>
+        <button onClick={() => setShowLicenses((v) => !v)}>Licenses</button>
         <Show when={error()}>
           <span style={{ color: "#ff6b6b" }}>{error()}</span>
         </Show>
@@ -236,7 +244,9 @@ export default function App() {
           </Show>
         </div>
 
-        <Viewer node={selected()} onSelect={selectNode} />
+        <Show when={showLicenses()} fallback={<Viewer node={selected()} onSelect={selectNode} />}>
+          <Licenses />
+        </Show>
 
         <div class="pane inspector">
           <h3>Inspector</h3>

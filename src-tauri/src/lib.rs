@@ -41,6 +41,7 @@ pub fn run() {
             commands::load_animation,
             commands::audio_info,
             commands::reveal_path,
+            commands::licenses,
             commands::load_bsp,
             commands::bsp_texture,
         ])

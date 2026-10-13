@@ -1,7 +1,7 @@
 //! gv-formats — hand-rolled parsers for GoldSrc / Half-Life resource formats.
 //!
 //! Pure Rust, no Tauri dependency, so each parser is unit-testable in isolation
-//! against the real assets under `xash3d-fwgs/dist/client-x64/{ts,valve}`.
+//! against real game assets (the tests skip when those are not present).
 //!
 //! Modules are added per phase:
 //!   Phase 0: `img` (TGA/BMP/PNG decode, WAV header info)

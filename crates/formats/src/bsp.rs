@@ -5,8 +5,9 @@
 //! → VERTEXES, textured via TEXINFO (planar s/t projection) and a TEXTURES miptex.
 //! Faces are triangulated (fan) and grouped by texture into `Surface`s.
 //!
-//! Milestone 1: geometry + embedded textures + entities + brush models.
-//! TODO: baked lightmaps (LIGHTING lump) and external-WAD texture resolution.
+//! Covers geometry, embedded textures, entities, brush models and the baked
+//! lightmaps (LIGHTING lump). Textures that live in an external WAD are left
+//! for the caller to resolve.
 
 use crate::{miptex, Rgba};
 use anyhow::{anyhow, Result};
